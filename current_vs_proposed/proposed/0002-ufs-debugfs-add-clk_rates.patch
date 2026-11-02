@@ -1,0 +1,58 @@
+ufs: debugfs: add clk_rates
+
+A read-only file listing every clock in the core's list with its real rate,
+its device-tree min/max, and the core's own record (curr_freq). On MT6991 it
+shows ufs_sel and ufs_fde (the encryption engine's clock) at a glance.
+
+Against stock android15-6.6 (sources/android15-6.6).
+
+--- a/drivers/ufs/core/ufs-debugfs.c	2026-11-01 17:05:25.603509882 +0530
++++ b/drivers/ufs/core/ufs-debugfs.c	2026-11-01 17:05:25.606509909 +0530
+@@ -2,6 +2,7 @@
+ // Copyright (C) 2020 Intel Corporation
+ 
+ #include <linux/debugfs.h>
++#include <linux/clk.h>
+ 
+ #include "ufs-debugfs.h"
+ #include <ufs/ufshcd.h>
+@@ -57,6 +58,31 @@
+ }
+ DEFINE_SHOW_ATTRIBUTE(ufs_debugfs_stats);
+ 
++/*
++ * Every clock the UFS core knows about, with its real rate from the clock
++ * framework, the min/max from the device tree's freq-table-hz, and the core's
++ * own record (curr_freq). Vendor code can move a clock without updating that
++ * record; this shows both.
++ */
++static int ufs_debugfs_clk_rates_show(struct seq_file *s, void *data)
++{
++	struct ufs_hba *hba = hba_from_file(s->file);
++	struct ufs_clk_info *clki;
++
++	seq_printf(s, "%-20s %11s %11s %11s %11s\n",
++		   "name", "rate_hz", "dt_min", "dt_max", "core_thinks");
++	list_for_each_entry(clki, &hba->clk_list_head, list) {
++		if (IS_ERR_OR_NULL(clki->clk))
++			continue;
++		seq_printf(s, "%-20s %11lu %11u %11u %11u\n", clki->name,
++			   clk_get_rate(clki->clk), clki->min_freq,
++			   clki->max_freq, clki->curr_freq);
++	}
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(ufs_debugfs_clk_rates);
++
+ static int ee_usr_mask_get(void *data, u64 *val)
+ {
+ 	struct ufs_hba *hba = data;
+@@ -204,6 +230,7 @@
+ 
+ static const struct ufs_debugfs_attr ufs_attrs[] = {
+ 	{ "stats", 0400, &ufs_debugfs_stats_fops },
++	{ "clk_rates", 0400, &ufs_debugfs_clk_rates_fops },
+ 	{ "saved_err", 0600, &ufs_saved_err_fops },
+ 	{ "saved_uic_err", 0600, &ufs_saved_err_fops },
+ 	{ }

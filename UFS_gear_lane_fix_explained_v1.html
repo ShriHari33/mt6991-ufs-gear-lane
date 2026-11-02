@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changing UFS gear and lanes at runtime on MT6991, explained from scratch</title>
+<style>
+:root {
+  --ink: #1c2128;
+  --muted: #59636e;
+  --rule: #d8dee4;
+  --soft: #f6f8fa;
+  --blue: #1f5fbf;   --blue-soft: #e8f0fb;
+  --green: #2f8a4f;  --green-soft: #eaf6ee;
+  --amber: #a26f00;  --amber-soft: #fff6dc;
+  --violet: #6b45b3; --violet-soft: #f3eefb;
+  --red: #b83a3a;    --red-soft: #fcecec;
+  --orange: #b85c00; --orange-soft: #fdf0e3;
+}
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html { background: #fff; }
+body {
+  margin: 0 auto; max-width: 47rem; padding: 2.6rem 1.4rem 5rem;
+  font: 16px/1.62 "Noto Serif", "Charter", Georgia, serif;
+  color: var(--ink);
+}
+h1, h2, h3, h4, .tag, figcaption, th, .toc, .meta, .flow, .stack, .legend, .src, .small, .label {
+  font-family: "Noto Sans", "DejaVu Sans", sans-serif;
+}
+h1 { font-size: 2.05rem; line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.01em; }
+.subtitle { font-size: 1.12rem; color: var(--muted); margin: 0 0 1.2rem; line-height: 1.45; }
+.meta { font-size: .8rem; color: var(--muted); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: .55rem 0; margin-bottom: 1.6rem; }
+h2 { font-size: 1.5rem; line-height: 1.25; margin: 3.2rem 0 .8rem; padding-top: .7rem; border-top: 3px solid var(--ink); }
+h2 .num { color: var(--blue); margin-right: .4em; }
+h3 { font-size: 1.13rem; margin: 2.1rem 0 .5rem; }
+h4 { font-size: .98rem; margin: 1.5rem 0 .35rem; }
+p { margin: .65rem 0; }
+ul, ol { padding-left: 1.4rem; margin: .6rem 0; }
+li { margin: .28rem 0; }
+li > ol, li > ul { margin: .3rem 0; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { font-weight: 700; }
+code {
+  font-family: "DejaVu Sans Mono", "Noto Mono", monospace; font-size: .8em;
+  background: var(--soft); border: 1px solid #e3e8ee; border-radius: 4px; padding: .04em .28em;
+  overflow-wrap: anywhere;
+}
+pre {
+  font-family: "DejaVu Sans Mono", "Noto Mono", monospace; font-size: .74rem; line-height: 1.5;
+  background: var(--soft); border: 1px solid var(--rule); border-radius: 8px;
+  padding: .75rem .95rem; overflow-x: auto; margin: .8rem 0 .2rem; white-space: pre;
+}
+pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+pre .hl { background: #fff1b8; }
+pre .bad { background: #f9d5d5; }
+pre .good { background: #d4efdc; }
+pre .dim { color: #8a939d; }
+.src { display: block; font-size: .7rem; color: var(--muted); text-align: right; margin: 0 0 1rem; }
+.nw { white-space: nowrap; }
+.small { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+
+.box { border-left: 4px solid; border-radius: 0 8px 8px 0; padding: .7rem 1rem .75rem; margin: 1.15rem 0; }
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+.box .tag { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; margin-bottom: .3rem; }
+.plain  { background: var(--amber-soft);  border-color: var(--amber); }  .plain .tag  { color: var(--amber); }
+.two    { background: var(--violet-soft); border-color: var(--violet); } .two .tag    { color: var(--violet); }
+.wrong  { background: var(--red-soft);    border-color: var(--red); }    .wrong .tag  { color: var(--red); }
+.try    { background: var(--green-soft);  border-color: var(--green); }  .try .tag    { color: var(--green); }
+.key    { background: var(--blue-soft);   border-color: var(--blue); }   .key .tag    { color: var(--blue); }
+.warn   { background: var(--orange-soft); border-color: var(--orange); } .warn .tag   { color: var(--orange); }
+.box pre { background: #fff; }
+
+table { border-collapse: collapse; width: 100%; margin: .9rem 0; font-size: .88rem; line-height: 1.45; }
+th, td { border-bottom: 1px solid var(--rule); padding: .42rem .55rem; text-align: left; vertical-align: top; }
+th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 2px solid var(--ink); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td code { font-size: .78em; }
+
+figure { margin: 1.5rem 0; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { font-size: .78rem; color: var(--muted); margin-top: .5rem; line-height: 1.45; }
+
+.toc { font-size: .9rem; line-height: 1.55; columns: 2; column-gap: 2rem; margin: .4rem 0 1rem; }
+.toc ol { margin: 0; padding-left: 1.3rem; }
+.toc li { break-inside: avoid; margin: .12rem 0; }
+.toc .pg { float: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media screen { .toc .pg { display: none; } }
+.legend { display: grid; grid-template-columns: max-content 1fr; gap: .35rem .8rem; font-size: .86rem; align-items: baseline; margin: .6rem 0 1rem; }
+.legend .chip { font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .12rem .45rem; border-radius: 4px; border-left: 3px solid; }
+.chip.plain { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+.chip.two { background: var(--violet-soft); border-color: var(--violet); color: var(--violet); }
+.chip.wrong { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+.chip.try { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+.chip.key { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+.chip.warn { background: var(--orange-soft); border-color: var(--orange); color: var(--orange); }
+
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .55rem; margin: .5rem 0 1rem; font-size: .76rem; line-height: 1.35; }
+.flow .step { position: relative; background: #fff; border: 1px solid var(--rule); border-radius: 8px; padding: .45rem .5rem; }
+.flow .step:not(:last-child)::after { content: "→"; position: absolute; right: -.52rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .8rem; }
+.flow .step b { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .15rem; }
+.flow code { overflow-wrap: normal; font-size: .74em; }
+.flow .fail { border-color: var(--red); background: var(--red-soft); }
+.flow .ok { border-color: var(--green); background: var(--green-soft); }
+.flow .sleep { border-color: var(--orange); background: var(--orange-soft); }
+.flowlabel { font-family: "Noto Sans", sans-serif; font-weight: 700; font-size: .82rem; margin: 1rem 0 .2rem; }
+
+.stack { margin: 1rem 0; font-size: .84rem; line-height: 1.4; }
+.stack .layer { display: grid; grid-template-columns: 9.5rem 1fr; gap: .8rem; border: 1px solid var(--rule); border-radius: 8px; padding: .55rem .75rem; margin: .3rem 0; }
+.stack .layer .name { font-weight: 700; }
+.stack .l3 { background: #f2f0fb; } .stack .l2 { background: #e8f0fb; } .stack .l1 { background: #eef1f4; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 1rem 0; }
+.split .box { margin: 0; }
+@media screen and (max-width: 720px) { .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .flow .step::after { display: none; } .split, .legend { grid-template-columns: 1fr; } .toc { columns: 1; } .stack .layer { grid-template-columns: 1fr; } }
+
+dl.gloss { margin: .6rem 0; }
+dl.gloss dt { font-family: "Noto Sans", sans-serif; font-weight: 700; font-size: .9rem; margin-top: .7rem; }
+dl.gloss dd { margin: .1rem 0 0 0; }
+
+.end { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--rule); font-size: .8rem; color: var(--muted); font-family: "Noto Sans", sans-serif; }
+
+@page { size: A4; margin: 15mm 14mm 17mm 14mm; }
+@media print {
+  body { max-width: none; padding: 0; font-size: 9.7pt; }
+  h2 { break-before: page; margin-top: 0; }
+  h3, h4 { break-after: avoid; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 7.5pt; }
+  .box, figure, pre, .flow, .stack, .split, .legend, tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  .toc { break-inside: avoid; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>Changing UFS gear and lanes at runtime on MT6991</h1>
+<p class="subtitle">Why the debugfs write failed with “exit h8 state fail”, and why one line fixed it. Explained from scratch.</p>
+<div class="meta">Written 31 October 2026 · MediaTek MT6991 SoC evaluation board · Android GKI kernel 6.6 (<code>android15-6.6</code>) with MediaTek vendor modules</div>
+</header>
+
+<div class="box key">
+<span class="tag">The whole story in six lines</span>
+<ol>
+<li>The board's kernel has a debugfs file, <code>power_mode</code>. Writing six digits to it (for example <code>332211</code>) should change the speed (gear), width (lanes) and mode of the link between the processor and its UFS storage chip.</li>
+<li>The write woke up the UFS <em>controller</em> inside the processor, but not the UFS <em>chip</em>. The link between them stayed in <strong>hibern8</strong>, its deep-sleep state.</li>
+<li>Before any speed change, MediaTek's driver checks that the link is awake. It waited 100&nbsp;ms, the link never woke, and it printed <code>exit h8 state fail</code>.</li>
+<li>The fix was one call: <code>ufs_debugfs_get_user_access()</code>, which runs <code>ufshcd_rpm_get_sync()</code>, instead of <code>pm_runtime_get_sync(hba-&gt;dev)</code>. The new call wakes the chip side too.</li>
+<li>The old line was correct in Linux 4.19, where the ported code came from. In Linux 5.14 (2021) the job of waking the link moved to a different object, so the same line now does less.</li>
+<li>Result on the board, 31 October: no more failures, and lane changes work.</li>
+</ol>
+</div>
+
+<h3>How to read this</h3>
+<p>Every idea starts with the physical thing (wires, chips, registers) before it gets a name. You'll see six kinds of boxes:</p>
+<div class="legend">
+<span class="chip plain">Plain words</span><span>The simplest version of the idea.</span>
+<span class="chip two">Two meanings</span><span>A word that means different things in different places. These caused real confusion.</span>
+<span class="chip key">Key point</span><span>The thing to remember from that section.</span>
+<span class="chip warn">Watch out</span><span>A trap you can fall into on the board.</span>
+<span class="chip wrong">Correction</span><span>Something stated during the investigation and later corrected.</span>
+<span class="chip try">Try it</span><span>Commands to run on the board.</span>
+</div>
+<p class="small">Line numbers come from the copies read for this write-up: MediaTek's vendor code from OnePlus's public MT6991 tree (<code>kernel_device_modules-6.6</code>), the Android common kernel <code>android15-6.6</code>, Qualcomm's msm-4.19 <code>ufs-debugfs.c</code>, and upstream Linux v5.13. The board's vendor tree has the same code but may be a few lines off.</p>
+
+<h3>Contents</h3>
+<nav class="toc">
+<ol>
+<li><a href="#p1">The hardware: two chips and some wires</a><span class="pg">3</span></li>
+<li><a href="#p2">Sleep: what hibern8 is</a><span class="pg">7</span></li>
+<li><a href="#p3">The software: who's who in Linux</a><span class="pg">9</span></li>
+<li><a href="#p4">Why the original line was right once</a><span class="pg">14</span></li>
+<li><a href="#p5">What happened on the board</a><span class="pg">16</span></li>
+<li><a href="#p6">The fix, and the other changes</a><span class="pg">20</span></li>
+<li><a href="#p7">How we got here, and where we went wrong</a><span class="pg">25</span></li>
+<li><a href="#p8">How we know it's fixed</a><span class="pg">27</span></li>
+<li><a href="#p9">Open items</a><span class="pg">29</span></li>
+<li><a href="#p10">Glossary</a><span class="pg">30</span></li>
+<li><a href="#p11">Files in this folder</a><span class="pg">32</span></li>
+<li><a href="#p12">References</a><span class="pg">33</span></li>
+</ol>
+</nav>
+
+<h2 id="p1"><span class="num">1</span>The hardware: two chips and some wires</h2>
+
+<h3>1.1 What is physically on the board</h3>
+<p>Two chips matter here.</p>
+<ul>
+<li><strong>The MT6991 processor (the SoC).</strong> Besides the CPU cores, it contains a block of logic called the <strong>UFS host controller</strong>. In this document it's <strong>the controller</strong>.</li>
+<li><strong>The UFS storage chip.</strong> NAND flash memory plus its own small processor that manages the flash. In this document it's <strong>the chip</strong>.</li>
+</ul>
+<p>Copper traces on the circuit board connect the two. These traces are the <strong>lanes</strong>. A lane carries bits in one direction only. Each lane is a <em>pair</em> of wires, and a bit is sent as the voltage <em>difference</em> between them: one wire goes up while the other goes down. Noise that hits both wires equally cancels out, which is why this works at billions of bits per second. MT6991 uses two lanes from the controller to the chip (transmit, TX) and two lanes back (receive, RX). That's eight data wires. The standard that defines these wires and their voltages is called <strong><span class="nw">M-PHY</span></strong>.</p>
+
+<figure>
+<svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" font-family="'Noto Sans', 'DejaVu Sans', sans-serif" role="img" aria-label="The UFS controller inside the SoC, connected to the UFS chip by two transmit and two receive lanes">
+  <rect x="10" y="14" width="360" height="272" rx="14" fill="#f3f6fb" stroke="#9aa9bf"/>
+  <text x="26" y="40" font-size="14" font-weight="700" fill="#1c2128">MT6991 processor (SoC)</text>
+  <rect x="24" y="74" width="112" height="58" rx="8" fill="#fff" stroke="#9aa9bf"/>
+  <text x="80" y="100" font-size="13" text-anchor="middle" fill="#1c2128">CPU cores</text>
+  <text x="80" y="117" font-size="10.5" text-anchor="middle" fill="#59636e">run the kernel</text>
+  <line x1="136" y1="103" x2="186" y2="103" stroke="#555" stroke-width="1.6"/>
+  <polygon points="184,98 193,103 184,108" fill="#555"/>
+  <text x="162" y="94" font-size="9" text-anchor="middle" fill="#59636e">registers</text>
+  <rect x="194" y="56" width="160" height="214" rx="10" fill="#e3ecfa" stroke="#1f5fbf" stroke-width="1.5"/>
+  <text x="274" y="80" font-size="13" font-weight="700" text-anchor="middle" fill="#1c2128">UFS host controller</text>
+  <text x="274" y="96" font-size="10.5" text-anchor="middle" fill="#59636e">“the controller”</text>
+  <text x="274" y="120" font-size="10.5" text-anchor="middle" fill="#1c2128">registers at 0x16810000</text>
+  <g font-family="'DejaVu Sans Mono', monospace" font-size="10" fill="#1c2128">
+    <text x="210" y="142">0x18  AHIT timer</text>
+    <text x="210" y="158">0x58  doorbell</text>
+    <text x="210" y="174">0x90  UIC command</text>
+    <text x="210" y="190">0x14C link state</text>
+  </g>
+  <line x1="208" y1="205" x2="340" y2="205" stroke="#9aa9bf"/>
+  <text x="274" y="224" font-size="10.5" text-anchor="middle" fill="#1c2128">clock ufs_sel:</text>
+  <text x="274" y="240" font-size="10.5" text-anchor="middle" fill="#1c2128">273 or 499.2 MHz</text>
+  <g stroke="#4a5562" stroke-width="1.5">
+    <line x1="358" y1="120" x2="528" y2="120"/><line x1="358" y1="126" x2="528" y2="126"/>
+    <line x1="358" y1="156" x2="528" y2="156"/><line x1="358" y1="162" x2="528" y2="162"/>
+    <line x1="366" y1="196" x2="536" y2="196"/><line x1="366" y1="202" x2="536" y2="202"/>
+    <line x1="366" y1="232" x2="536" y2="232"/><line x1="366" y1="238" x2="536" y2="238"/>
+  </g>
+  <g fill="#4a5562">
+    <polygon points="527,116 538,123 527,130"/>
+    <polygon points="527,152 538,159 527,166"/>
+    <polygon points="367,192 356,199 367,206"/>
+    <polygon points="367,228 356,235 367,242"/>
+  </g>
+  <g font-size="10" text-anchor="middle" fill="#1c2128">
+    <text x="447" y="113">TX lane 0</text>
+    <text x="447" y="149">TX lane 1</text>
+    <text x="447" y="189">RX lane 0</text>
+    <text x="447" y="225">RX lane 1</text>
+  </g>
+  <text x="447" y="262" font-size="9.5" text-anchor="middle" fill="#59636e">M-PHY: each lane is a pair of wires</text>
+  <rect x="540" y="56" width="208" height="214" rx="10" fill="#e6f4ea" stroke="#2f8a4f" stroke-width="1.5"/>
+  <text x="644" y="80" font-size="13" font-weight="700" text-anchor="middle" fill="#1c2128">UFS storage chip</text>
+  <text x="644" y="96" font-size="10.5" text-anchor="middle" fill="#59636e">“the chip”</text>
+  <g font-size="10.5" text-anchor="middle" fill="#1c2128">
+    <text x="644" y="128">its own small controller</text>
+    <text x="644" y="146">+ NAND flash</text>
+    <text x="644" y="180">LUs: sda, sdb, sdc …</text>
+    <text x="644" y="206">W-LUN 0xD0:</text>
+    <text x="644" y="222">the chip as a whole</text>
+  </g>
+</svg>
+<figcaption>Figure 1. The controller is inside the SoC; the chip is a separate package. The CPU never touches the lanes. It only reads and writes the controller's registers, and the controller drives the wires.</figcaption>
+</figure>
+
+<p>The CPU talks to the controller through <strong>registers</strong>. A register is a memory address wired to hardware instead of to RAM. Writing a number there makes the hardware do something; reading it tells you what the hardware is doing. The controller's registers start at physical address <code>0x16810000</code>, the <code>ufshci@16810000</code> node in the device tree (<code>mt6991.dts:6686</code>). Four of them matter in this story (offsets from that base):</p>
+
+<table>
+<thead><tr><th>Offset</th><th>Name</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>0x18</code></td><td>AHIT (auto-hibernate idle timer)</td><td>How long the link may sit idle before the controller puts it to sleep by itself. Writing 0 turns this off. (Part 2.)</td></tr>
+<tr><td><code>0x58</code></td><td>Transfer request doorbell</td><td>One bit per command slot. The driver sets a bit to say “slot <em>n</em> has a command, go”; the controller clears it when the command is done.</td></tr>
+<tr><td><code>0x90</code></td><td>UIC command</td><td>Where the driver writes commands for the link itself: wake it, put it to sleep, read or change a link setting.</td></tr>
+<tr><td><code>0x14C</code></td><td>MediaTek link state (<code>REG_UFS_UFS_MMIO_OTSD_CTRL</code>)</td><td>MediaTek-specific. Its top byte says whether the link is up, down or asleep. (Part 2.)</td></tr>
+</tbody>
+</table>
+
+<div class="box two">
+<span class="tag">Two meanings</span>
+<p><strong>“Host”</strong> can mean the controller hardware, Linux's SCSI host object (<code>struct Scsi_Host</code>), or loosely the whole phone. <strong>“Device”</strong> can mean the UFS chip, or any <code>struct device</code> in Linux's tree of objects. In this document, <em>the controller</em> and <em>the chip</em> are always the hardware. A plain “device” means the Linux object.</p>
+</div>
+
+<h3>1.2 Three layers of rules on the wires</h3>
+<p>Wires alone aren't enough; both ends need rules. UFS stacks three sets of them, and the chip runs the same stack on its side:</p>
+<div class="stack">
+<div class="layer l3"><span class="name">UFS transport (UTP)</span><span>Carries SCSI commands (READ, WRITE, START STOP UNIT, …) in packets called UPIUs. This is what the files are made of.</span></div>
+<div class="layer l2"><span class="name">UniPro</span><span>The link layer. Packs bits into frames, checks them, acknowledges them and re-sends anything lost. It also owns the link's <em>speed and power state</em>. Its settings are numbered <strong>attributes</strong>, such as <code>PA_TXGEAR</code> (0x1568, the transmit gear) or <code>PA_ACTIVETXDATALANES</code> (0x1560, how many transmit lanes are in use). “PA” stands for PHY Adapter, the bottom part of UniPro.</span></div>
+<div class="layer l1"><span class="name"><span class="nw">M-PHY</span></span><span>The electrical layer: drives the voltages, recovers bits and timing at the other end, puts the wires to sleep and wakes them.</span></div>
+</div>
+<p>The driver reaches UniPro through <strong>UIC commands</strong>, written to register 0x90. The ones in this story are <code>DME_GET</code> and <code>DME_SET</code> (read or write one attribute), and <code>DME_HIBERNATE_ENTER</code> and <code>DME_HIBERNATE_EXIT</code> (put the link to sleep, wake it up). DME is the part of UniPro that accepts these commands (the Device Management Entity).</p>
+<div class="box plain">
+<span class="tag">Plain words</span>
+<p>SCSI is what the letter says. UniPro is the delivery service that numbers the letters, confirms delivery and re-sends lost ones. <span class="nw">M-PHY</span> is the road.</p>
+</div>
+
+<h3>1.3 Gears: how fast the wires flip</h3>
+<p>A <strong>gear</strong> is how many bits per second each lane carries. The high-speed (HS) gears go from G1 to G5, and each gear doubles the one before. There are two slightly different base frequencies, called <strong>rate A</strong> and <strong>rate B</strong>. MediaTek always uses rate B (it's the default, <code>PA_HS_MODE_B</code>, in the core's shared negotiation helper).</p>
+<table>
+<thead><tr><th>Gear</th><th class="n">Bits per second per lane (rate B)</th><th class="n">One bit lasts</th></tr></thead>
+<tbody>
+<tr><td><span class="nw">HS-G1</span></td><td class="n">1,457.6 million</td><td class="n">686 ps</td></tr>
+<tr><td><span class="nw">HS-G2</span></td><td class="n">2,915.2 million</td><td class="n">343 ps</td></tr>
+<tr><td><span class="nw">HS-G3</span></td><td class="n">5,830.4 million</td><td class="n">172 ps</td></tr>
+<tr><td><span class="nw">HS-G4</span></td><td class="n">11,660.8 million</td><td class="n">86 ps</td></tr>
+<tr><td><span class="nw">HS-G5</span></td><td class="n">23,321.6 million</td><td class="n">43 ps</td></tr>
+</tbody>
+</table>
+<p>To make that physical: at G5 one bit lasts 43 picoseconds (trillionths of a second). In that time a signal travelling along a circuit-board trace covers about 6 or 7 millimetres.</p>
+<p>Not every bit on the wire is your data. Gears G1 to G4 send every 8 bits of data as 10 bits on the wire (<strong>8b/10b</strong> encoding), which keeps the signal balanced and lets the receiver stay locked to its timing. G5 uses the more efficient 128b/130b. So the data a lane can carry is its bit rate × 0.8 (× 128/130 at G5). Part 8 uses this to check that a gear change really happened.</p>
+<p>There is also a slow family, the <strong>PWM gears</strong>, used for bring-up and low power. They run from a few megabits per second to a few hundred.</p>
+<p>The controller's own clock has to keep up with the gear. On MT6991 that clock is <code>ufs_sel</code>, which switches between a 273&nbsp;MHz source and a 499.2&nbsp;MHz source (<code>freq-table-hz = &lt;273000000 499200000&gt;</code>, <code>mt6991.dts:6732</code>). MediaTek's code pairs the top gear with 499.2&nbsp;MHz and G4 with 273&nbsp;MHz (section 6.4). The 499.2&nbsp;MHz source needs the SoC's core supply voltage (vcore) at 0.65&nbsp;V or more (<code>clk-scale-up-vcore-min = &lt;650000&gt;</code>, <code>mt6991.dts:6751</code>).</p>
+
+<h3>1.4 Lanes</h3>
+<p>Lanes are parallel roads. With two lanes the data is split across both, so the link carries twice as much. Each direction can use 1 or 2 lanes.</p>
+<div class="box two">
+<span class="tag">Two meanings</span>
+<p>“Two lanes” in UFS means two <em>per direction</em>: 2 TX and 2 RX, four wire pairs. In the six digits, the lane part <code>22</code> is one digit for RX and one for TX.</p>
+</div>
+
+<h3>1.5 Modes: the last two digits</h3>
+<ul>
+<li><code>1</code> = FAST_MODE: the HS gears.</li>
+<li><code>2</code> = SLOW_MODE: the PWM gears.</li>
+<li><code>4</code> = FASTAUTO, <code>5</code> = SLOWAUTO: the same, except that the link may drop into a lower-power state on its own between bursts of data.</li>
+</ul>
+<div class="box two">
+<span class="tag">Two meanings: “power mode” has three</span>
+<ol>
+<li><strong>Link power mode</strong> (UniPro): FAST, SLOW, FASTAUTO, SLOWAUTO. The link's speed setting. The digits set this.</li>
+<li><strong>Chip power mode</strong>: Active, Sleep, PowerDown. Set by sending the chip the SCSI command START STOP UNIT (often shortened to SSU).</li>
+<li><strong>Linux runtime PM state</strong> of a <code>struct device</code>: active or suspended (Part 3).</li>
+</ol>
+<p>The bug involved all three at once.</p>
+</div>
+
+<h3>1.6 A power mode change, step by step</h3>
+<p>Changing gear, lanes or mode is a <strong>power mode change</strong>, or <strong>PMC</strong>. Both ends must switch at the same moment, so a PMC is a conversation over the link:</p>
+<ol>
+<li>The driver writes the new settings into the controller's UniPro attributes: <code>PA_RXGEAR</code>, <code>PA_ACTIVERXDATALANES</code>, <code>PA_RXTERMINATION</code>, <code>PA_TXGEAR</code>, <code>PA_ACTIVETXDATALANES</code>, <code>PA_TXTERMINATION</code>, <code>PA_HSSERIES</code> (rate A or B), and some timeout values (<code>PA_PWRMODEUSERDATA0</code> and onwards).</li>
+<li>It writes <code>PA_PWRMODE</code>. That write is the trigger.</li>
+<li>UniPro negotiates the change with the chip, over the link.</li>
+<li>The controller raises an interrupt with the result. “Local success” means done.</li>
+</ol>
+<p>In the 6.6 code, <code>ufshcd_change_power_mode()</code> (<code>ufshcd.c:4560</code>) does steps 1 and 2, and <code>ufshcd_uic_pwr_ctrl()</code> (<code>ufshcd.c:4199</code>) waits up to 500&nbsp;ms (<code>UIC_CMD_TIMEOUT_DEFAULT</code>) for step 4. If nothing arrives, it prints <code>pwr ctrl cmd 0x… with mode 0x… completion timeout</code> (<code>ufshcd.c:4237</code>).</p>
+<div class="box key">
+<span class="tag">Key point</span>
+<p>A PMC is a conversation over the link. If the link is asleep, nobody answers.</p>
+</div>
+<p>The six digits are <code>GGLLMM</code>: gear RX, gear TX, lanes RX, lanes TX, mode RX, mode TX. So <code>332211</code> means <span class="nw">HS-G3</span>, two lanes each way, FAST mode.</p>
+
+
+<h2 id="p2"><span class="num">2</span>Sleep: what hibern8 is</h2>
+
+<h3>2.1 The link's deep sleep</h3>
+<p>When there's nothing to send, keeping eight wires switching billions of times a second wastes power. <strong>Hibern8</strong> (say “hibernate”) is the link's deepest sleep that still remembers its settings. The transmitters stop driving the wires, and the circuits that generate the fast clocks (the PLLs) stop. The gear and lane settings are kept, so waking up is much quicker than starting the link from scratch.</p>
+<div class="box two">
+<span class="tag">Two meanings</span>
+<p>Hibern8 is not the PC kind of hibernate, where RAM is saved to disk. Only the link sleeps; the phone stays on.</p>
+</div>
+
+<h3>2.2 Two ways in, and one way out of each</h3>
+<p><strong>Auto-hibern8 (AH8): the hardware does it.</strong> You put an idle time into the AHIT register (offset 0x18). If no command arrives for that long, the controller puts the link to sleep by itself, and when a new command arrives it wakes the link by itself. Software takes no part. MediaTek sets the idle time according to who made the chip: 3.5&nbsp;ms for Samsung, 2&nbsp;ms for Micron, 1&nbsp;ms for everyone else (<code>ufs_mtk_fix_ahit()</code>, <code>ufs-mediatek.c:1488</code>). Writing 0 to AHIT turns the timer off.</p>
+<p><strong>Software hibern8: the driver does it.</strong> The driver sends the UIC command <code>DME_HIBERNATE_ENTER</code>. The link then stays asleep until the driver sends <code>DME_HIBERNATE_EXIT</code>. The hardware will not wake it on its own, and changing AHIT doesn't touch it.</p>
+<div class="box plain">
+<span class="tag">Plain words</span>
+<p>Auto-hibern8 is a motion-sensor light: it goes off when nobody's around and comes back on when someone walks in. Software hibern8 is a light somebody switched off by hand: it stays off until somebody switches it back on.</p>
+</div>
+<div class="box key">
+<span class="tag">Key point</span>
+<p>The whole bug in one sentence: MediaTek's check treated a hand-switched light as if it were a motion-sensor light, and waited for it to come on by itself.</p>
+</div>
+
+<h3>2.3 How the driver sees whether the link is awake</h3>
+<p>MediaTek's controller reports the link's state in register <code>0x14C</code> (<code>REG_UFS_UFS_MMIO_OTSD_CTRL</code>, <code>ufs-mediatek.h:52</code>). Its top byte, bits 31 to 24, holds the state:</p>
+<table>
+<thead><tr><th class="n">Value</th><th>Name in the code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="n">0</td><td><code>VS_LINK_DISABLED</code></td><td>Link not started</td></tr>
+<tr><td class="n">1</td><td><code>VS_LINK_DOWN</code></td><td>Link down</td></tr>
+<tr><td class="n">2</td><td><code>VS_LINK_UP</code></td><td>Awake and working</td></tr>
+<tr><td class="n">3</td><td><code>VS_LINK_HIBERN8</code></td><td>Asleep in hibern8</td></tr>
+<tr><td class="n">4</td><td><code>VS_LINK_LOST</code></td><td>Connection lost</td></tr>
+<tr><td class="n">5</td><td><code>VS_LINK_CFG</code></td><td>Being configured</td></tr>
+</tbody>
+</table>
+<p class="src">ufs-mediatek.h:134</p>
+<p><code>ufs_mtk_wait_link_state()</code> (<code>ufs-mediatek.c:562</code>) reads that byte every 100 to 200&nbsp;µs until it shows the state it wants, or gives up when its time limit runs out. Bits 20 to 16 of the same register show the controller's internal state machine; MediaTek's idle wait uses them to spot a hibern8 entry or exit that's still in progress (values 8 to 13).</p>
+<pre><code>static int ufs_mtk_wait_link_state(struct ufs_hba *hba, u32 state,
+                                   unsigned long max_wait_ms)
+{
+        ...
+        timeout = ktime_add_ms(ktime_get(), max_wait_ms);
+        do {
+                time_checked = ktime_get();
+                <span class="dim">if (host-&gt;legacy_ip_ver || host-&gt;ip_ver &lt; IP_VER_MT6899) { ... older chips ... }</span>
+                <span class="dim">else {</span>
+                        <span class="hl">val = ufshcd_readl(hba, REG_UFS_UFS_MMIO_OTSD_CTRL);</span>
+                        <span class="hl">val = val &gt;&gt; 24;</span>
+                <span class="dim">}</span>
+                if (val == state)
+                        return 0;
+                usleep_range(100, 200);   /* Sleep for max. 200us */
+        } while (ktime_before(time_checked, timeout));
+
+        return -ETIMEDOUT;
+}</code></pre>
+<p class="src">ufs-mediatek.c:562 (trimmed)</p>
+<p class="small">MT6991 uses this register because its IP version (<code>0x10460000</code> or <code>0x10470000</code>) is at least <code>IP_VER_MT6899</code>. Older MediaTek chips read <code>REG_UFS_PROBE</code> instead. An earlier explanation called it <code>REG_UFS_PROBE</code>; that's the older chips' register.</p>
+
+<h2 id="p3"><span class="num">3</span>The software: who's who in Linux</h2>
+
+<h3>3.1 Core and vendor: where the ported code runs</h3>
+<p>On Android, Google builds one generic kernel image for every phone, the <strong>GKI</strong> (Generic Kernel Image). The UFS <strong>core</strong> is part of it: <code>drivers/ufs/core/ufshcd.c</code>, <code>ufs-debugfs.c</code> and their friends. MediaTek's UFS code (<code>ufs-mediatek.c</code>, <code>ufs-mediatek-sysfs.c</code>, …) is a <strong>vendor module</strong> loaded on top, from <code>kernel_device_modules</code>.</p>
+<p>The core calls into the vendor module through <strong>vops</strong> (“variant operations”): a table of function pointers that MediaTek fills in. The ones in this story are:</p>
+<ul>
+<li><code>pwr_change_notify</code>, called just before a PMC (<code>PRE_CHANGE</code>) and just after it (<code>POST_CHANGE</code>);</li>
+<li><code>suspend</code> and <code>resume</code>, called when the chip side goes to sleep or wakes;</li>
+<li><code>clk_scale_notify</code>, called around clock changes.</li>
+</ul>
+<p>The debugfs file lives in the core's <code>ufs-debugfs.c</code>. It can call core functions, but it can't see MediaTek's private data (<code>struct ufs_mtk_host</code>). That's why the fix had to use a core helper. It's also why a change there needs a new kernel image, not just a new vendor module.</p>
+<div class="box two">
+<span class="tag">Two meanings: debugfs and sysfs</span>
+<p>Both are files the kernel invents on the fly. <strong>sysfs</strong> (<code>/sys</code>) is the stable interface for real users; MediaTek's <code>clkscale_control</code> lives there. <strong>debugfs</strong> (<code>/sys/kernel/debug</code>) is for developers and can change at any time; the <code>power_mode</code> file lives there.</p>
+</div>
+
+<h3>3.2 The objects Linux creates for UFS</h3>
+<p>Linux keeps a tree of <code>struct device</code> objects, one for each thing it manages. For UFS the tree looks like this:</p>
+
+<figure>
+<svg viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg" font-family="'Noto Sans', 'DejaVu Sans', sans-serif" role="img" aria-label="Linux device tree for UFS: hba->dev, then host0, then the W-LUN and the LUs; each LU depends on the W-LUN">
+  <rect x="190" y="12" width="380" height="58" rx="9" fill="#e3ecfa" stroke="#1f5fbf" stroke-width="1.5"/>
+  <text x="380" y="36" font-family="'DejaVu Sans Mono', monospace" font-size="13" font-weight="700" text-anchor="middle" fill="#1c2128">hba-&gt;dev  (16810000.ufshci)</text>
+  <text x="380" y="56" font-size="11" text-anchor="middle" fill="#59636e">the controller: clocks, interrupt, power supplies</text>
+  <g stroke="#7d8896" stroke-width="1.5">
+    <line x1="380" y1="70" x2="380" y2="94"/>
+    <line x1="380" y1="132" x2="380" y2="154"/>
+    <line x1="130" y1="154" x2="630" y2="154"/>
+    <line x1="130" y1="154" x2="130" y2="176"/>
+    <line x1="350" y1="154" x2="350" y2="176"/>
+    <line x1="490" y1="154" x2="490" y2="176"/>
+    <line x1="630" y1="154" x2="630" y2="176"/>
+  </g>
+  <rect x="285" y="94" width="190" height="38" rx="8" fill="#fff" stroke="#9aa9bf"/>
+  <text x="380" y="118" font-size="12" text-anchor="middle" fill="#1c2128">host0 · SCSI host</text>
+  <rect x="30" y="176" width="200" height="76" rx="9" fill="#e6f4ea" stroke="#2f8a4f" stroke-width="2"/>
+  <text x="130" y="200" font-family="'DejaVu Sans Mono', monospace" font-size="12.5" font-weight="700" text-anchor="middle" fill="#1c2128">0:0:0:49488</text>
+  <text x="130" y="220" font-size="11.5" text-anchor="middle" fill="#1c2128">UFS Device W-LUN</text>
+  <text x="130" y="238" font-size="11" text-anchor="middle" fill="#59636e">= the chip as a whole</text>
+  <g font-size="13" font-weight="700" text-anchor="middle" fill="#1c2128">
+    <rect x="290" y="176" width="120" height="76" rx="9" fill="#fff" stroke="#9aa9bf"/>
+    <rect x="430" y="176" width="120" height="76" rx="9" fill="#fff" stroke="#9aa9bf"/>
+    <rect x="570" y="176" width="120" height="76" rx="9" fill="#fff" stroke="#9aa9bf"/>
+    <text x="350" y="204">sda</text><text x="490" y="204">sdb</text><text x="630" y="204">sdc …</text>
+  </g>
+  <g font-family="'DejaVu Sans Mono', monospace" font-size="11" text-anchor="middle" fill="#1c2128">
+    <text x="350" y="224">0:0:0:0</text><text x="490" y="224">0:0:0:1</text><text x="630" y="224">0:0:0:2</text>
+  </g>
+  <g font-size="10.5" text-anchor="middle" fill="#59636e">
+    <text x="350" y="241">LU</text><text x="490" y="241">LU</text><text x="630" y="241">LU</text>
+  </g>
+  <g stroke="#6b45b3" stroke-width="1.5" stroke-dasharray="5 4" fill="none">
+    <line x1="350" y1="252" x2="350" y2="286"/>
+    <line x1="490" y1="252" x2="490" y2="286"/>
+    <line x1="630" y1="252" x2="630" y2="286"/>
+    <line x1="130" y1="286" x2="630" y2="286"/>
+    <line x1="130" y1="286" x2="130" y2="262"/>
+  </g>
+  <polygon points="124,264 130,253 136,264" fill="#6b45b3"/>
+  <text x="400" y="312" font-size="11" text-anchor="middle" fill="#6b45b3">dashed: each LU depends on the W-LUN (a “device link”)</text>
+</svg>
+<figcaption>Figure 2. Solid lines are parent and child; dashed lines are “depends on”. The <span class="nw">W-LUN</span> is Linux's handle on the chip itself. There are two more <span class="nw">W-LUN</span>s (RPMB and BOOT) that don't matter here.</figcaption>
+</figure>
+
+<ul>
+<li><code>hba-&gt;dev</code> is the controller, as a “platform device” named <code>16810000.ufshci</code>. Its jobs: the controller's clocks, interrupt and power supplies. (<code>hba</code> stands for host bus adapter, the core's <code>struct ufs_hba</code> for one controller.)</li>
+<li><code>host0</code> is Linux's SCSI host. The chip speaks SCSI, so Linux handles it like a SCSI disk enclosure.</li>
+<li><strong>Logical units (LUs)</strong> are slices of the chip that you can read and write. They appear as <code>sda</code>, <code>sdb</code>, <code>sdc</code>, and so on; your partitions live inside them.</li>
+<li><strong>Well-known logical units (<span class="nw">W-LUN</span>s)</strong> are special addresses for jobs that concern the whole chip. The important one is the <strong>UFS Device <span class="nw">W-LUN</span></strong>: to put the whole chip to sleep or wake it, you send START STOP UNIT to this address.</li>
+</ul>
+<p>The UFS Device <span class="nw">W-LUN</span> is number <code>0xD0</code> in UFS's own numbering. Linux shows it as <code>0:0:0:49488</code>. The arithmetic: clear the <span class="nw">W-LUN</span> flag bit (<code>0x80</code>), which leaves <code>0x50</code>; add SCSI's base for well-known units, <code>0xC100</code>; that gives <code>0xC150</code>, which is 49488. (The RPMB <span class="nw">W-LUN</span>, <code>0xC4</code>, becomes 49476, and the BOOT <span class="nw">W-LUN</span>, <code>0xB0</code>, becomes 49456.)</p>
+<div class="box plain">
+<span class="tag">Plain words</span>
+<p>The <span class="nw">W-LUN</span> is Linux's handle on <em>the chip itself</em>. Waking the <span class="nw">W-LUN</span> means waking the chip and the link that leads to it.</p>
+</div>
+
+<h3>3.3 Runtime PM from scratch</h3>
+<p><strong>Runtime PM</strong> is how Linux lets single parts of a running phone sleep while everything else keeps working. Every <code>struct device</code> has a usage counter and a state, <em>active</em> or <em>suspended</em>.</p>
+<ul>
+<li><code>pm_runtime_get_sync(dev)</code> means “I need this device now”. It adds 1 to the counter. If the device is asleep, it runs the device's wake-up function (its <em>resume callback</em>) and waits for it to finish.</li>
+<li><code>pm_runtime_put(dev)</code> means “I'm done”. It subtracts 1. At zero, the device may go to sleep after its <strong>autosuspend delay</strong>.</li>
+</ul>
+<p>Four rules decide who wakes whom. Each has a physical reason:</p>
+<ol>
+<li><strong>Waking a device wakes its parent first.</strong> You can't reach the chip if the controller's clocks are off.</li>
+<li><strong>Waking a parent never wakes its children.</strong> Powering the controller doesn't mean anyone needs the chip.</li>
+<li><strong>A parent can't sleep while a child is awake.</strong></li>
+<li><strong>Device links add “depends on” arrows.</strong> Each LU depends on the <span class="nw">W-LUN</span> (<code>device_link_add(…, DL_FLAG_PM_RUNTIME | DL_FLAG_RPM_ACTIVE)</code>, <code>ufshcd.c:5093</code>). So the <span class="nw">W-LUN</span> can't sleep while any LU is awake, and waking an LU wakes the <span class="nw">W-LUN</span> first.</li>
+</ol>
+<p>On the board the LUs wait for 500&nbsp;ms of quiet before they sleep (<code>MTK_RPM_AUTOSUSPEND_DELAY_MS</code>, <code>ufs-mediatek.h:367</code>, set as the SCSI host's <code>rpm_autosuspend_delay</code> at <code>ufs-mediatek.c:1769</code>), and the <span class="nw">W-LUN</span> waits 0&nbsp;ms (<code>ufshcd_wl_probe()</code>, <code>ufshcd.c:10815</code>). So about half a second after the last disk access, the whole chip side is asleep.</p>
+<div class="box two">
+<span class="tag">Two meanings</span>
+<p><strong>Runtime suspend</strong> (one device sleeps while the phone is on) is not <strong>system suspend</strong> (the whole phone sleeps). This bug is entirely about runtime suspend.</p>
+<p>And the one that caused confusion: <code>ufshcd_rpm_get_sync()</code> and <code>pm_runtime_get_sync()</code> are not two different mechanisms. The first is a one-line wrapper around the second:</p>
+<pre><code>static inline int ufshcd_rpm_get_sync(struct ufs_hba *hba)
+{
+        return pm_runtime_get_sync(&amp;hba-&gt;ufs_device_wlun-&gt;sdev_gendev);
+}</code></pre>
+<p class="src">ufshcd-priv.h:344</p>
+<p>Same function, different device: the <span class="nw">W-LUN</span> instead of <code>hba-&gt;dev</code>. Which device you name decides what wakes up.</p>
+</div>
+
+<h3>3.4 What each object does when it sleeps and wakes (6.6)</h3>
+<p>This is where the real work happens. The code is short; read it. Comments starting with <code>←</code> are mine.</p>
+
+<h4>The <span class="nw">W-LUN</span> going to sleep: <code>__ufshcd_wl_suspend()</code></h4>
+<pre><code>        ret = ufshcd_vops_suspend(hba, pm_op, PRE_CHANGE);      <span class="dim">// ← vendor hook</span>
+        ...
+        if (req_dev_pwr_mode != hba-&gt;curr_dev_pwr_mode) {
+                ...
+                        ret = ufshcd_set_dev_pwr_mode(hba, req_dev_pwr_mode);
+                                                <span class="dim">// ← START STOP UNIT: chip to Sleep</span>
+        }
+        ...
+        <span class="hl">ret = ufshcd_link_state_transition(hba, req_link_state, check_for_bkops);</span>
+                                                <span class="dim">// ← DME_HIBERNATE_ENTER: link to hibern8</span>
+        ...
+vops_suspend:
+        ret = ufshcd_vops_suspend(hba, pm_op, POST_CHANGE);     <span class="dim">// ← vendor hook</span></code></pre>
+<p class="src">ufshcd.c:9746, lines 9830–9879 (trimmed)</p>
+<p>How deep it sleeps is set by <code>rpm_lvl</code>. The core's default is level 3: chip in Sleep, link in hibern8 (<code>ufshcd.c:10676</code>). MediaTek switches to level 1 (chip stays Active, link in hibern8) only if the device tree has <code>mediatek,ufs-vcc-always-on</code>, which the MT6991 tree used here doesn't (<code>ufs-mediatek.c:2878</code>). Either way, <strong>the link ends up in software hibern8</strong>.</p>
+
+<h4>The <span class="nw">W-LUN</span> waking up: <code>__ufshcd_wl_resume()</code></h4>
+<pre><code>static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
+{
+        ...
+        ret = ufshcd_vops_resume(hba, pm_op);                    <span class="dim">// ← vendor hook</span>
+        ...
+        if (ufshcd_is_link_hibern8(hba)) {
+                <span class="hl">ret = ufshcd_uic_hibern8_exit(hba);</span>          <span class="dim">// ← DME_HIBERNATE_EXIT</span>
+                if (!ret)
+                        ufshcd_set_link_active(hba);
+                ...
+        } else if (ufshcd_is_link_off(hba)) {
+                ret = ufshcd_reset_and_restore(hba);         <span class="dim">// ← link was off: full restart</span>
+                ...
+        }
+        if (!ufshcd_is_ufs_dev_active(hba)) {
+                ret = ufshcd_set_dev_pwr_mode(hba, UFS_ACTIVE_PWR_MODE);
+                                                <span class="dim">// ← START STOP UNIT: chip to Active</span>
+                ...
+        }
+        ...
+        /* Enable Auto-Hibernate if configured */
+        ufshcd_auto_hibern8_enable(hba);                         <span class="dim">// ← AHIT timer back on</span>
+        ...
+}</code></pre>
+<p class="src">ufshcd.c:9927 (trimmed)</p>
+
+<h4>The controller waking up: <code>ufshcd_resume()</code></h4>
+<pre><code>static int ufshcd_resume(struct ufs_hba *hba)
+{
+        ...
+        ufshcd_hba_vreg_set_hpm(hba);                <span class="dim">// ← power supplies to full power</span>
+        ret = ufshcd_vreg_set_hpm(hba);
+        ...
+        /* Make sure clocks are enabled before accessing controller */
+        ret = ufshcd_setup_clocks(hba, true);        <span class="dim">// ← clocks on</span>
+        ...
+        /* enable the host irq as host controller would be active soon */
+        ufshcd_enable_irq(hba);                      <span class="dim">// ← interrupt on</span>
+
+        goto out;
+        ...
+}</code></pre>
+<p class="src">ufshcd.c:10163 (trimmed)</p>
+<p>That's all the controller's wake-up does: power supplies, clocks, interrupt. Nothing about the link, nothing about the chip.</p>
+<div class="box key">
+<span class="tag">Key point</span>
+<p>In 6.6, the only wake-up that sends <code>DME_HIBERNATE_EXIT</code> is the <span class="nw">W-LUN</span>'s. Waking the controller alone leaves the link asleep.</p>
+</div>
+
+<h3>3.5 The sleep and wake order on the board</h3>
+<figure>
+<svg viewBox="0 0 760 228" xmlns="http://www.w3.org/2000/svg" font-family="'Noto Sans', 'DejaVu Sans', sans-serif" role="img" aria-label="Timeline: half a second after the last disk access, the LUs, the W-LUN, the link and the controller go to sleep in order">
+  <g font-size="11.5" fill="#1c2128" font-weight="600">
+    <text x="12" y="35">LUs (sda, sdb, …)</text>
+    <text x="12" y="75">W-LUN (the chip)</text>
+    <text x="12" y="115">Link</text>
+    <text x="12" y="155">Controller (hba-&gt;dev)</text>
+  </g>
+  <g stroke-width="1">
+    <rect x="180" y="18" width="240" height="26" rx="4" fill="#d3ecd9" stroke="#2f8a4f"/>
+    <rect x="420" y="18" width="320" height="26" rx="4" fill="#e5e8ec" stroke="#9aa3ad"/>
+    <rect x="180" y="58" width="248" height="26" rx="4" fill="#d3ecd9" stroke="#2f8a4f"/>
+    <rect x="428" y="58" width="312" height="26" rx="4" fill="#fbe3c6" stroke="#b85c00"/>
+    <rect x="180" y="98" width="256" height="26" rx="4" fill="#d3ecd9" stroke="#2f8a4f"/>
+    <rect x="436" y="98" width="304" height="26" rx="4" fill="#fbe3c6" stroke="#b85c00"/>
+    <rect x="180" y="138" width="264" height="26" rx="4" fill="#d3ecd9" stroke="#2f8a4f"/>
+    <rect x="444" y="138" width="296" height="26" rx="4" fill="#e5e8ec" stroke="#9aa3ad"/>
+  </g>
+  <g font-size="10.5" fill="#1c2128">
+    <text x="190" y="35">active</text>
+    <text x="428" y="35">suspended</text>
+    <text x="190" y="75">active</text>
+    <text x="436" y="75">suspended: chip in Sleep (START STOP UNIT)</text>
+    <text x="190" y="115">UP</text>
+    <text x="444" y="115">HIBERN8 (software: DME_HIBERNATE_ENTER)</text>
+    <text x="190" y="155">active</text>
+    <text x="452" y="155">suspended: clocks off</text>
+  </g>
+  <line x1="180" y1="188" x2="742" y2="188" stroke="#59636e" stroke-width="1.2"/>
+  <polygon points="740,184 748,188 740,192" fill="#59636e"/>
+  <g stroke="#59636e" stroke-width="1.2">
+    <line x1="180" y1="184" x2="180" y2="192"/>
+    <line x1="420" y1="184" x2="420" y2="192"/>
+    <line x1="712" y1="184" x2="712" y2="192"/>
+  </g>
+  <line x1="712" y1="10" x2="712" y2="182" stroke="#1f5fbf" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <g font-size="10.5" fill="#59636e">
+    <text x="180" y="208">last disk access</text>
+    <text x="420" y="208" text-anchor="middle">+500 ms</text>
+    <text x="748" y="208" text-anchor="end" fill="#1f5fbf">you write power_mode</text>
+  </g>
+</svg>
+<figcaption>Figure 3. The sleep cascade. The LUs sleep after 500&nbsp;ms of quiet; the <span class="nw">W-LUN</span> follows at once (chip to Sleep, link to software hibern8); then the controller turns its clocks off. By the time a command arrives, everything is asleep.</figcaption>
+</figure>
+<p><strong>Going to sleep</strong> (500&nbsp;ms without disk access): the LUs sleep → the <span class="nw">W-LUN</span> sleeps at once (chip to Sleep, link into software hibern8) → the controller sleeps (clocks off).</p>
+<p><strong>Waking with <code>ufshcd_rpm_get_sync()</code></strong>, which names the <span class="nw">W-LUN</span>: rule 1 wakes the controller first (clocks on). Then the <span class="nw">W-LUN</span>'s own wake-up runs: <code>DME_HIBERNATE_EXIT</code>, chip to Active, AH8 timer back on. The link is UP.</p>
+<p><strong>Waking with <code>pm_runtime_get_sync(hba-&gt;dev)</code></strong>, which names the controller: clocks on. Then, by rule 2, nothing else. The link stays in hibern8 and the chip stays in Sleep.</p>
+
+
+<h2 id="p4"><span class="num">4</span>Why the original line was right once</h2>
+<p>Was this “decided in 6.6”? It wasn't. It changed in Linux 5.14, in 2021, and 6.6 inherited it. the ported code comes from Qualcomm's Linux 4.19, from before the change.</p>
+
+<h3>4.1 Up to Linux 5.13: one switch did everything</h3>
+<p>Before 5.14, waking <code>hba-&gt;dev</code> ran <code>ufshcd_runtime_resume()</code>, which called <code>ufshcd_resume(hba, UFS_RUNTIME_PM)</code>. In v5.13 that single function did all of it:</p>
+<pre><code>static int ufshcd_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
+{
+        ...
+        ret = ufshcd_setup_clocks(hba, true);                    <span class="dim">// 8860 ← clocks on</span>
+        ...
+        ufshcd_enable_irq(hba);                                  <span class="dim">// 8865 ← interrupt on</span>
+        <span class="hl">--------- 6.6 cuts the function here ---------</span>
+        ret = ufshcd_vops_resume(hba, pm_op);                    <span class="dim">//      ← vendor hook</span>
+        ...
+        if (ufshcd_is_link_hibern8(hba)) {
+                ret = ufshcd_uic_hibern8_exit(hba);              <span class="dim">// 8880 ← DME_HIBERNATE_EXIT</span>
+        ...
+        if (!ufshcd_is_ufs_dev_active(hba)) {
+                ret = ufshcd_set_dev_pwr_mode(hba, UFS_ACTIVE_PWR_MODE);
+                                                                 <span class="dim">// 8905 ← chip to Active</span>
+        ...
+        ufshcd_auto_hibern8_enable(hba);                         <span class="dim">// 8928 ← AHIT timer back on</span>
+        ...
+}</code></pre>
+<p class="src">upstream v5.13, drivers/scsi/ufs/ufshcd.c:8846 (trimmed; numbers are line numbers)</p>
+<p>So in 4.19, <code>pm_runtime_get_sync(hba-&gt;dev)</code> woke the controller, the link and the chip. Qualcomm's msm-4.19 debugfs function starts with exactly that line (<code>ufs-debugfs.c:1211</code> in msm-4.19, copied in file 04), and the ported code is a port of that function.</p>
+
+<h3>4.2 The deadlock that moved the job</h3>
+<p>The change is commit <code>b294ff3e3449</code>, “scsi: ufs: core: Enable power management for wlun”, by Asutosh Das and Can Guo (both at Qualcomm). It was committed on 10 May 2021 and first released in Linux 5.14. Its commit message explains what went wrong before it:</p>
+<ol>
+<li>When the controller went to sleep, its own sleep function sent START STOP UNIT to the chip, to put the chip to sleep first.</li>
+<li>But by rule 3, the controller only sleeps after all its children are asleep, and that includes the SCSI devices. Their request queues were already suspended.</li>
+<li>A block-layer change, <code>52abca64fd94</code> (“scsi: block: Do not accept any requests while suspended”), made any request to a suspended queue wait until the queue resumes.</li>
+<li>So the START STOP UNIT sat waiting for a queue that would never resume, and the controller's sleep waited for the command. Nothing could move. The commit message shows the stuck call chain: <code>ufshcd_runtime_suspend → ufshcd_suspend → ufshcd_set_dev_pwr_mode → __scsi_execute → blk_get_request → blk_queue_enter → schedule</code>.</li>
+</ol>
+<p>The fix gave the <span class="nw">W-LUN</span> its own runtime PM and moved the chip-and-link work into <em>its</em> sleep and wake functions. With the device links, the <span class="nw">W-LUN</span> sleeps after all the LUs and wakes after the controller, so its START STOP UNIT always has a working path.</p>
+
+<h3>4.3 The proof: the old function, cut in two</h3>
+<p>Put v5.13's <code>ufshcd_resume()</code> next to 6.6 and cut it right after <code>ufshcd_enable_irq()</code>. The top half is 6.6's <code>ufshcd_resume()</code>, the controller's wake-up. The bottom half is 6.6's <code>__ufshcd_wl_resume()</code>, the <span class="nw">W-LUN</span>'s wake-up. The lines are nearly identical, as you can check against the excerpts in section 3.4.</p>
+<table>
+<thead><tr><th>Step</th><th>v5.13: all in <code>ufshcd_resume()</code>, run when <code>hba-&gt;dev</code> wakes</th><th>6.6: where it moved</th></tr></thead>
+<tbody>
+<tr><td>Power supplies to full power</td><td>yes</td><td><code>ufshcd_resume()</code>, the controller</td></tr>
+<tr><td>Clocks on</td><td>line 8860</td><td><code>ufshcd_resume()</code>, the controller</td></tr>
+<tr><td>Interrupt on</td><td>line 8865</td><td><code>ufshcd_resume()</code>, the controller</td></tr>
+<tr><td>Vendor resume hook</td><td>yes</td><td><code>__ufshcd_wl_resume()</code>, the <span class="nw">W-LUN</span></td></tr>
+<tr><td><code>DME_HIBERNATE_EXIT</code></td><td>line 8880</td><td><code>__ufshcd_wl_resume()</code>, the <span class="nw">W-LUN</span></td></tr>
+<tr><td>Chip to Active (START STOP UNIT)</td><td>line 8905</td><td><code>__ufshcd_wl_resume()</code>, the <span class="nw">W-LUN</span></td></tr>
+<tr><td>AHIT timer back on</td><td>line 8928</td><td><code>__ufshcd_wl_resume()</code>, the <span class="nw">W-LUN</span></td></tr>
+</tbody>
+</table>
+<div class="split">
+<div class="box plain"><span class="tag">Linux 4.19 to 5.13</span><p><code>pm_runtime_get_sync(hba-&gt;dev)</code> wakes the controller, the link and the chip.</p></div>
+<div class="box warn"><span class="tag">Linux 5.14 and later, including 6.6</span><p><code>pm_runtime_get_sync(hba-&gt;dev)</code> wakes the controller only.</p></div>
+</div>
+<div class="box plain">
+<span class="tag">Plain words</span>
+<p>In the old house, the main switch also turned on the hallway light. In 2021 the house was rewired and the hallway got its own switch. The ported instructions were written for the old house: “flip the main switch”. Flipping it left the hallway dark.</p>
+</div>
+
+<h2 id="p5"><span class="num">5</span>What happened on the board</h2>
+
+<h3>5.1 The ported code path, start to finish</h3>
+<p>This is the ported code as of 31 October. Writing <code>echo 332211 &gt; …/power_mode</code> runs:</p>
+<ol>
+<li><strong><code>ufsdbg_power_mode_write()</code></strong> reads the six digits, keeps the current rate (A or B), checks them with <code>ufsdbg_power_mode_validate()</code>, and compares them with the chip's maximum in <code>ufsdbg_cfg_pwr_param()</code>.</li>
+<li><strong><code>ufsdbg_config_pwr_mode()</code></strong> then:
+<ol type="a">
+<li><strong>Gets access to the hardware.</strong> Originally with <code>pm_runtime_get_sync(hba-&gt;dev)</code>; now with <code>ufs_debugfs_get_user_access(hba)</code>.</li>
+<li><strong><code>ufshcd_hold()</code></strong> keeps the controller's clocks on. Apart from runtime PM, the core also switches the controller's clocks off during short idle gaps. This is called <strong>clock gating</strong>, and on MediaTek it kicks in after at least 10&nbsp;ms (<code>clk_gating.delay_ms = max(ah_ms, 10U)</code>). “Hold” blocks it while the code works.</li>
+<li><strong><code>down_write(&amp;hba-&gt;clk_scaling_lock)</code></strong> keeps the core's clock scaling, its error handler and its internal management commands (queries to the chip) from running at the same time. It's 6.6's replacement for msm-4.19's <code>hba-&gt;lock</code>.</li>
+<li><strong><code>ufshcd_scsi_block_requests()</code></strong> tells the SCSI layer to stop sending new reads and writes.</li>
+<li><strong><code>ufshcd_wait_for_doorbell_clr()</code></strong> waits until every command already sent has finished, that is, until the doorbell register (0x58) reads all zeros.</li>
+<li><strong>The ported clock lines</strong> (section 6.3) and <strong><code>ufshcd_config_pwr_mode()</code></strong>, which runs MediaTek's <code>PRE_CHANGE</code> hook, then the PMC, then the <code>POST_CHANGE</code> hook.</li>
+<li><strong>Undo everything</strong> in reverse order.</li>
+</ol>
+</li>
+</ol>
+
+<h3>5.2 Error 1: the PMC timed out</h3>
+<p>This came from the first version, which, like Qualcomm's original (it calls <code>ufshcd_change_power_mode()</code> directly), sent the PMC without going through MediaTek's hooks. Whenever the board had been quiet for more than half a second, the <span class="nw">W-LUN</span> was asleep and the link was in software hibern8. The first line woke only the controller. The PMC was sent into a sleeping link, nothing answered, and after 500&nbsp;ms the core gave up. It was first reported as “pmc command timed out”; the 6.6 core's wording is <code>pwr ctrl cmd … completion timeout</code>.</p>
+<p class="small">To be honest about this one: we never captured its full log. The sleeping link is the explanation that fits everything else, but it wasn't proven separately.</p>
+
+<h3>5.3 Error 2: “exit h8 state fail”</h3>
+<p>Next the call was routed through <code>ufshcd_config_pwr_mode()</code>, the way MediaTek's own <code>clkscale_control</code> path does. That runs MediaTek's <code>PRE_CHANGE</code> hook <em>before</em> the PMC:</p>
+<pre><code>static int ufs_mtk_pwr_change_notify(struct ufs_hba *hba,
+                                     enum ufs_notify_change_status stage,
+                                     struct ufs_pa_layer_attr *dev_max_params,
+                                     struct ufs_pa_layer_attr *dev_req_params)
+{
+        int ret = 0;
+        static u32 reg;
+
+        switch (stage) {
+        case PRE_CHANGE:
+                if (ufshcd_is_auto_hibern8_supported(hba)) {
+                        reg = ufshcd_readl(hba, REG_AUTO_HIBERNATE_IDLE_TIMER);
+                        <span class="hl">ufs_mtk_auto_hibern8_disable(hba);</span>    <span class="dim">// ← return value ignored</span>
+                }
+                ret = ufs_mtk_pre_pwr_change(hba, dev_max_params,
+                                             dev_req_params);
+                break;
+        case POST_CHANGE:
+                if (ufshcd_is_auto_hibern8_supported(hba))
+                        ufshcd_writel(hba, reg, REG_AUTO_HIBERNATE_IDLE_TIMER);
+                break;
+        ...</code></pre>
+<p class="src">ufs-mediatek.c:2023</p>
+<p>And the function it calls:</p>
+<pre><code>int ufs_mtk_auto_hibern8_disable(struct ufs_hba *hba)
+{
+        unsigned long flags;
+        int ret;
+
+        /* disable auto-hibern8 */
+        spin_lock_irqsave(hba-&gt;host-&gt;host_lock, flags);
+        ufshcd_writel(hba, 0, REG_AUTO_HIBERNATE_IDLE_TIMER);
+        spin_unlock_irqrestore(hba-&gt;host-&gt;host_lock, flags);
+
+        /* wait host return to idle state when auto-hibern8 off */
+        ufs_mtk_wait_idle_state(hba, 5);
+
+        <span class="hl">ret = ufs_mtk_wait_link_state(hba, VS_LINK_UP, 100);</span>
+        if (ret) {
+                <span class="bad">dev_warn(hba-&gt;dev, "exit h8 state fail, ret=%d\n", ret);</span>
+
+                spin_lock_irqsave(hba-&gt;host-&gt;host_lock, flags);
+                hba-&gt;force_reset = true;
+                hba-&gt;ufshcd_state = UFSHCD_STATE_EH_SCHEDULED_FATAL;
+                schedule_work(&amp;hba-&gt;eh_work);
+                spin_unlock_irqrestore(hba-&gt;host-&gt;host_lock, flags);
+
+                /* trigger error handler and break suspend */
+                ret = -EBUSY;
+        }
+
+        return ret;
+}</code></pre>
+<p class="src">ufs-mediatek.c:2997</p>
+<p>Step by step:</p>
+<ol>
+<li><strong>Save AHIT and write 0</strong>, which switches auto-hibern8 off. MediaTek's code expects that switching the timer off makes the controller bring the link out of <em>auto</em>-hibern8 by itself. That's why the next steps only wait and watch.</li>
+<li><strong>Wait up to 5&nbsp;ms</strong> for any hibern8 entry or exit still in progress to finish.</li>
+<li><strong>Poll register 0x14C for up to 100&nbsp;ms</strong>, waiting for the link state to read UP (2).</li>
+<li><strong>It never did.</strong> So it prints <code>exit h8 state fail, ret=-110</code> (−110 is <code>-ETIMEDOUT</code>), sets <code>force_reset</code>, marks the controller's state <code>UFSHCD_STATE_EH_SCHEDULED_FATAL</code> (3), schedules the error handler (which will reset the controller and the link) and returns <code>-EBUSY</code>.</li>
+<li><strong>The caller ignores that return value</strong> and goes on to <code>ufs_mtk_pre_pwr_change()</code> and then the PMC, on a link that's still asleep.</li>
+</ol>
+<p><strong>Why the link never came UP:</strong> it wasn't in auto-hibern8. The <span class="nw">W-LUN</span>'s sleep had put it into <em>software</em> hibern8 with <code>DME_HIBERNATE_ENTER</code>. Switching the AHIT timer off can't undo that. Only <code>DME_HIBERNATE_EXIT</code> can, and the only code that sends it is the <span class="nw">W-LUN</span>'s wake-up, which nothing had run.</p>
+
+<div class="flowlabel">Before the fix: <code>pm_runtime_get_sync(hba-&gt;dev)</code></div>
+<div class="flow">
+<div class="step"><b>1</b>Controller wakes: clocks on</div>
+<div class="step sleep"><b>2</b>Link still in hibern8, chip still asleep</div>
+<div class="step"><b>3</b>MediaTek <code>PRE_CHANGE</code>: AHIT = 0</div>
+<div class="step sleep"><b>4</b>Poll 0x14C for UP … 100&nbsp;ms</div>
+<div class="step fail"><b>5</b>“exit h8 state fail”, reset queued</div>
+<div class="step fail"><b>6</b>PMC sent into a sleeping link</div>
+</div>
+<div class="flowlabel">After the fix: <code>ufs_debugfs_get_user_access()</code> → <code>ufshcd_rpm_get_sync()</code></div>
+<div class="flow">
+<div class="step"><b>1</b>Controller wakes: clocks on</div>
+<div class="step ok"><b>2</b><span class="nw">W-LUN</span> wakes: <code>DME_<wbr>HIBERNATE_<wbr>EXIT</code>, chip Active</div>
+<div class="step"><b>3</b>MediaTek <code>PRE_CHANGE</code>: AHIT = 0</div>
+<div class="step ok"><b>4</b>0x14C already says UP</div>
+<div class="step ok"><b>5</b>PMC over an awake link</div>
+<div class="step"><b>6</b><code>POST_CHANGE</code>: AHIT restored</div>
+</div>
+<p class="small">Figure 4. The same write, before and after. The only difference is step 2.</p>
+
+<h3>5.4 One bug, seen from two places</h3>
+<p>Errors 1 and 2 are the same problem. Without MediaTek's hook, the PMC itself ran into the sleeping link and timed out. With the hook, the hook noticed the sleeping link first and complained.</p>
+
+<h3>5.5 Why it could look random</h3>
+<p>Within half a second of any disk access, the LUs, and so the <span class="nw">W-LUN</span>, were still awake, the link was UP, and the old line was enough. If the old code ever worked, that's why.</p>
+
+<h3>5.6 The <code>#if 0</code> manual hibern8 exit</h3>
+<p>The ported code has a disabled block that called <code>ufshcd_uic_hibern8_exit()</code> directly. It aimed at the right symptom, but it would only have woken the link. The chip would still be in Sleep from START STOP UNIT, and the core's records would still say the <span class="nw">W-LUN</span> is suspended and the link is in hibern8, because <code>ufshcd_uic_hibern8_exit()</code> doesn't update <code>hba-&gt;uic_link_state</code>; its callers do (<code>ufshcd.c:4413</code>). The next real wake-up would then most likely send <code>DME_HIBERNATE_EXIT</code> to a link that's already awake, and fail. Waking the <span class="nw">W-LUN</span> does all three things, in the order the core expects.</p>
+<p class="small">Qualcomm's original also enters and exits hibern8 by hand, but for a different reason: around its clock switch, so that auto-hibern8 can't race it (<code>ufs-debugfs.c:1237</code> in msm-4.19).</p>
+
+
+<h2 id="p6"><span class="num">6</span>The fix, and the other changes</h2>
+
+<h3>6.1 The one line that mattered</h3>
+<div class="split">
+<div>
+<p class="label small"><strong>Before</strong> (as ported from Qualcomm msm-4.19)</p>
+<pre><code><span class="bad">pm_runtime_get_sync(hba-&gt;dev);</span>
+ufshcd_hold(hba);
+...
+out:
+...
+ufshcd_release(hba);
+<span class="bad">pm_runtime_put_sync(hba-&gt;dev);</span></code></pre>
+</div>
+<div>
+<p class="label small"><strong>After</strong> (what runs now)</p>
+<pre><code><span class="good">ret = ufs_debugfs_get_user_access(hba);</span>
+<span class="good">if (ret)</span>
+<span class="good">        return ret;</span>
+ufshcd_hold(hba);
+...
+out:
+...
+ufshcd_release(hba);
+<span class="good">ufs_debugfs_put_user_access(hba);</span></code></pre>
+</div>
+</div>
+<p>The helper was already in the 6.6 file being edited:</p>
+<pre><code>static int ufs_debugfs_get_user_access(struct ufs_hba *hba)
+__acquires(&amp;hba-&gt;host_sem)
+{
+        down(&amp;hba-&gt;host_sem);
+        if (!ufshcd_is_user_access_allowed(hba)) {
+                up(&amp;hba-&gt;host_sem);
+                return -EBUSY;
+        }
+        <span class="hl">ufshcd_rpm_get_sync(hba);</span>
+        return 0;
+}
+
+static void ufs_debugfs_put_user_access(struct ufs_hba *hba)
+__releases(&amp;hba-&gt;host_sem)
+{
+        ufshcd_rpm_put_sync(hba);
+        up(&amp;hba-&gt;host_sem);
+}</code></pre>
+<p class="src">ufs-debugfs.c:68</p>
+<ul>
+<li><strong><code>down(&amp;hba-&gt;host_sem)</code></strong> takes the UFS core's “one big job at a time” semaphore. The error handler, system suspend, shutdown, the boot-time scan and the core's own sysfs writes all take it (<code>ufshcd.c</code> lines 6561, 10067, 10309, 9039, 1669), so the PMC can't collide with any of them.</li>
+<li><strong><code>ufshcd_is_user_access_allowed()</code></strong> refuses during shutdown (it returns <code>!hba-&gt;shutting_down</code>).</li>
+<li><strong><code>ufshcd_rpm_get_sync(hba)</code></strong> wakes the <span class="nw">W-LUN</span>, which by rule 1 wakes the controller first.</li>
+</ul>
+<p>What happens now when you write <code>power_mode</code> after half a second of quiet:</p>
+<ol>
+<li>The controller wakes: power supplies, clocks, interrupt.</li>
+<li>The <span class="nw">W-LUN</span> wakes: <code>DME_HIBERNATE_EXIT</code> (link UP), START STOP UNIT (chip Active), AHIT timer back on.</li>
+<li>MediaTek's <code>PRE_CHANGE</code> sets AHIT to 0; the link is already UP, so the check passes.</li>
+<li>The PMC runs over an awake link. <code>POST_CHANGE</code> puts AHIT back.</li>
+<li>The code releases everything, and half a second later the whole chip side sleeps again.</li>
+</ol>
+<div class="box key">
+<span class="tag">Key point</span>
+<p>MediaTek's own <code>clkscale_control</code> path never had this bug: it calls <code>ufshcd_rpm_get_sync()</code> before anything else (<code>ufs-mediatek.c:2322</code> and <code>2398</code>). The fix makes the path follow the same recipe.</p>
+</div>
+
+<h3>6.2 The other changes in file 06</h3>
+<h4>Changed 1: the mode digits</h4>
+<p>The ported code had a “failsafe” block that forced FAST mode, using a variable called <code>pwr</code>. There is no <code>pwr</code> in the ported function, so it wouldn't compile, and forcing FAST would turn every SLOW (PWM) request into a FAST one. (The block looks like it came from an early version of file 05, which had both problems.) File 06 replaces it with:</p>
+<pre><code>        if (desired_pwr_mode-&gt;pwr_rx == FASTAUTO_MODE)
+                desired_pwr_mode-&gt;pwr_rx = FAST_MODE;
+        else if (desired_pwr_mode-&gt;pwr_rx == SLOWAUTO_MODE)
+                desired_pwr_mode-&gt;pwr_rx = SLOW_MODE;
+        desired_pwr_mode-&gt;pwr_tx = desired_pwr_mode-&gt;pwr_rx;</code></pre>
+<p>Why map the AUTO modes at all? MediaTek's <code>ufs_mtk_pre_pwr_change()</code> (<code>ufs-mediatek.c:1908</code>) asks a shared core helper, <code>ufshcd_get_pwr_dev_param()</code>, to agree the final settings. That helper only treats <code>FAST_MODE</code> as high speed:</p>
+<pre><code>        if (dev_max-&gt;pwr_rx == FAST_MODE)
+                is_dev_sup_hs = true;
+        ...
+        if (!is_dev_sup_hs &amp;&amp; is_pltfrm_max_hs) {
+                pr_info("%s: device doesn't support HS\n", __func__);
+                return -ENOTSUPP;</code></pre>
+<p class="src">ufshcd-pltfrm.c (the same helper in a newer tree, renamed <code>ufshcd_negotiate_pwr_params()</code>; same logic)</p>
+<p>A FASTAUTO request looks to it like “the device doesn't support HS”. It returns <code>-ENOTSUPP</code> and leaves the result all zeros. MediaTek only prints <code>failed to determine capabilities</code> and carries on, so the PMC would go out asking for gear 0 on 0 lanes. SLOW requests are fine, because MediaTek switches the helper into PWM mode for them.</p>
+<p>The same helper also gives TX and RX the same gear (the lower of the two requested) and the same mode, caps lanes at 2, and sets rate B. So <code>342211</code> becomes G3 in both directions.</p>
+
+<h4>Changed 2: don't report success after a queued reset</h4>
+<pre><code>        /* AH8 disable failed in MTK's PRE_CHANGE: host reset queued */
+        if (!ret &amp;&amp; hba-&gt;ufshcd_state != UFSHCD_STATE_OPERATIONAL)
+                ret = -EIO;</code></pre>
+<p>MediaTek's hook can fail, queue a reset and still let the PMC report success. This turns that case into an error. The states (<code>ufshcd.h:529</code>):</p>
+<table>
+<thead><tr><th class="n">Value</th><th>State</th><th>Meaning here</th></tr></thead>
+<tbody>
+<tr><td class="n">0</td><td><code>UFSHCD_STATE_RESET</code></td><td>Being reset</td></tr>
+<tr><td class="n">1</td><td><code>UFSHCD_STATE_OPERATIONAL</code></td><td>All good</td></tr>
+<tr><td class="n">2</td><td><code>UFSHCD_STATE_EH_SCHEDULED_NON_FATAL</code></td><td>Error handler queued for a minor error</td></tr>
+<tr><td class="n">3</td><td><code>UFSHCD_STATE_EH_SCHEDULED_FATAL</code></td><td>Reset queued. This is what MediaTek's failed check sets.</td></tr>
+<tr><td class="n">4</td><td><code>UFSHCD_STATE_ERROR</code></td><td>Recovery failed</td></tr>
+</tbody>
+</table>
+<p>The debug print, <code>dev_err(hba-&gt;dev, "state=%d\n", hba-&gt;ufshcd_state)</code>, reads the same field.</p>
+
+<h4>The validate function</h4>
+<p>Qualcomm's original <code>ufsdbg_power_mode_validate()</code> allows gears up to G4 and only FAST or FASTAUTO. It rejects G5 and every SLOW request with “power parameters are not valid”. File 06 has a version that allows G1 to G5 and all four modes, if you need it.</p>
+
+<h3>6.3 The ported clock-scaling lines</h3>
+<p><strong>What they try to do:</strong> slow the controller's clock when the link goes down to G1, and speed it up for anything higher, by calling <code>ufshcd_scale_clks()</code> before or after the PMC.</p>
+<p><strong>What actually runs on MT6991:</strong></p>
+<ol>
+<li><code>ufshcd_scale_clks()</code> first calls MediaTek's <code>clk_scale_notify</code> hook, which returns at once (<code>ufs-mediatek.c:3172</code>). The core's clock scaling is switched off on this board: the device-tree flag <code>mediatek,ufs-clkscale-only-by-user</code> (<code>mt6991.dts:6768</code>) makes MediaTek skip setting <code>UFSHCD_CAP_CLK_SCALING</code> (<code>ufs-mediatek.c:1763</code>).</li>
+<li>Then the core's <code>ufshcd_set_clk_freq()</code> walks its list of clocks. <code>ufs_sel</code> is still on that list, with 273 and 499.2&nbsp;MHz from the device tree; MediaTek removes only the two <em>source</em> clocks from the list (<code>ufs-mediatek.c:1240</code>). So the core calls <code>clk_set_rate(ufs_sel, …)</code>, unless it believes the clock is already at that rate.</li>
+<li>MediaTek's own path makes the same switch differently (<code>_ufs_mtk_clk_scale()</code>, <code>ufs-mediatek.c:3039</code>). It raises vcore to at least 0.65&nbsp;V <em>before</em> moving <code>ufs_sel</code> to the fast source with <code>clk_set_parent()</code>, and lowers vcore only <em>after</em> moving to the slow source. The core's path never touches vcore.</li>
+</ol>
+<p><strong>Is that safe?</strong> Slowing a clock down is always safe. Speeding it up to 499.2&nbsp;MHz is safe only if vcore is already high enough. After <code>echo 4 &gt; clkscale_control</code>, MediaTek has raised vcore, and the lock stops anyone lowering it, so it's fine. The risky combination is <code>echo 1</code> or <code>echo 3</code> (MediaTek drops vcore to its minimum) followed by a G5 request through <code>power_mode</code>.</p>
+<p class="small">Two things not checked. Whether <code>clk_set_rate()</code> really moves this mux depends on MediaTek's clock driver, which wasn't read. And <code>ufshcd_scale_clks()</code> is <code>static</code> in the stock android15-6.6 <code>ufshcd.c</code> (line 1128); since the build links, the board's tree must make it visible, probably as part of the port.</p>
+<div class="box wrong">
+<span class="tag">Correction</span>
+<p>An earlier explanation said these lines were harmless because MediaTek's clock-scale hook does nothing. The hook does nothing, but the core still calls <code>clk_set_rate()</code> on <code>ufs_sel</code>. The conclusion stands (safe after <code>echo 4</code>; don't mix with 1 or 3), but the reason given was incomplete.</p>
+</div>
+
+<h3>6.4 <code>clkscale_control</code>, and why <code>echo 4</code> first</h3>
+<p>MediaTek's sysfs file takes six values. This is its own help text (<code>ufs-mediatek-sysfs.c:688</code>), with what each value does on the board:</p>
+<table>
+<thead><tr><th class="n">Value</th><th>Help text</th><th>On the board</th></tr></thead>
+<tbody>
+<tr><td class="n">0</td><td>free run</td><td>Refused: needs the core's clock scaling, which is off (“only by user”)</td></tr>
+<tr><td class="n">1</td><td>scale down</td><td>G4 and the 273&nbsp;MHz clock (<code>min_gear = UFS_HS_G4</code>), vcore lowered</td></tr>
+<tr><td class="n">2</td><td>scale up</td><td>Max gear and 499.2&nbsp;MHz. The value at boot.</td></tr>
+<tr><td class="n">3</td><td>scale down and forbid change</td><td>Like 1, then locked</td></tr>
+<tr><td class="n">4</td><td>scale up and forbid change</td><td>Like 2, then locked</td></tr>
+<tr><td class="n">5</td><td>allow change and free run</td><td>Removes the lock</td></tr>
+</tbody>
+</table>
+<p><strong>What <code>echo 4</code> does</strong>, through <code>clkscale_control_store()</code> (<code>ufs-mediatek-sysfs.c:710</code>), <code>ufs_mtk_dynamic_clock_scaling()</code> (<code>ufs-mediatek.c:2364</code>) and <code>ufs_mtk_config_pwr_mode()</code> (<code>ufs-mediatek.c:2271</code>):</p>
+<ol>
+<li>Wake the <span class="nw">W-LUN</span> (<code>ufshcd_rpm_get_sync()</code>), block new commands, hold the clocks, wait for the doorbell to clear.</li>
+<li>Raise vcore, ask the CPUs for low wake-up latency (a PM QoS request), move <code>ufs_sel</code> to 499.2&nbsp;MHz.</li>
+<li>PMC to <code>max_gear</code>, then print <code>PMC Success! [RX, TX]: gear=…</code>.</li>
+<li>Release everything, then set <code>clk_scale_forbid = true</code>.</li>
+</ol>
+<p><strong>Why it helps while you experiment:</strong></p>
+<ul>
+<li>The clock and vcore are ready for G5.</li>
+<li>With the forbid flag set, every later call to <code>ufs_mtk_dynamic_clock_scaling()</code> returns at its first line. Its callers are writes to <code>clkscale_control</code> and the eye-monitor scan (<code>eyemon_scan()</code>). The store function accepts a <code>powerhal_set: </code> prefix, which means Android's PowerHAL writes this file at runtime. Without the lock, one of those writes could run its own PMC and replace the setting.</li>
+</ul>
+<div class="box warn">
+<span class="tag">Watch out</span>
+<p><code>echo 2</code> or <code>echo 4</code> will not take you back to max gear after you've changed the gear through <code>power_mode</code>. <code>ufs_mtk_dynamic_clock_scaling()</code> remembers its last request in a <code>static</code> variable, <code>scale_mode</code>. If that was already “scale up”, it returns without a PMC; it doesn't know <code>power_mode</code> moved the gear. Write the max mode through <code>power_mode</code>, or reboot. <code>echo 5</code> removes the lock.</p>
+</div>
+
+<h2 id="p7"><span class="num">7</span>How we got here, and where we went wrong</h2>
+
+<h3>7.1 The path, in order</h3>
+<ol>
+<li><strong>The question.</strong> The starting point: the board, <code>clkscale_control</code>, the ported debugfs code and the two errors, and a search for a ready-made fix.</li>
+<li><strong>The search.</strong> We went through upstream Linux, MediaTek's vendor trees and the patch archives. No patch fixes this exact failure. Two are related, and neither fixes it: <code>7dec5cedf7b2</code> (“scsi: ufs: core: Serialize AHIT register access between sysfs and host driver”) and <code>f29ec85ac4fd</code> (“scsi: ufs: host: mediatek: Return error directly on idle wait timeout”). We downloaded MediaTek's MT6991 vendor code (OnePlus's public copy), the android15-6.6 core files and Qualcomm's msm-4.19 <code>ufs-debugfs.c</code>, so the three could be read side by side.</li>
+<li><strong>One step at a time.</strong> The first explanation was too compressed, so we slowed down and went through it a question at a time. What does disabling AH8 actually do? Must the link be up before a PMC? Why would the <span class="nw">W-LUN</span>'s suspend have sent <code>DME_HIBERNATE_ENTER</code>? Why is there a separate step that powers UniPro down?</li>
+<li><strong>Code to compare.</strong> Files 01 to 05 were written into this folder, to open side by side in an editor.</li>
+<li><strong>The flow.</strong> The ported code's sequence: <code>pm_runtime_get_sync()</code>, hold, lock, block, doorbell, PMC, plus the ported clock lines. Its first step was the root cause: it woke <code>hba-&gt;dev</code>, not the <span class="nw">W-LUN</span>.</li>
+<li><strong>The clock question.</strong> Keep the ported clock-scaling lines, or copy MediaTek's? We settled on keeping them, setting <code>clkscale_control</code> to 4 first, and never mixing with 1 or 3.</li>
+<li><strong>The ported code.</strong> The code switched to <code>ufs_debugfs_get_user_access()</code> (from file 05) on 31 October. It was copied into file 06, with two more fixes marked.</li>
+<li><strong>The test.</strong> We rebuilt the kernel image, set <code>clkscale_control</code> to 4 and wrote <code>power_mode</code>: no <code>exit h8 state fail</code>. Then the lane tests passed too.</li>
+</ol>
+
+<h3>7.2 Corrections along the way</h3>
+<p>These statements changed during the investigation; knowing which helps in weighing the rest.</p>
+<table>
+<thead><tr><th>What was said</th><th>What's actually true</th></tr></thead>
+<tbody>
+<tr><td>Force every request to FAST mode.</td><td>Only the AUTO modes need mapping. Forcing FAST breaks SLOW (PWM) requests. (6.2)</td></tr>
+<tr><td>First: the ported clock lines are dangerous. Then: they're harmless because MediaTek's hook does nothing.</td><td>They're safe after <code>echo 4</code>, but the core does call <code>clk_set_rate()</code> on <code>ufs_sel</code>. Don't mix them with 1 or 3. (6.3)</td></tr>
+<tr><td><code>down_write(&amp;hba-&gt;lock)</code> is a problem.</td><td>That lock doesn't exist in 6.6. The 6.6 equivalent is <code>hba-&gt;clk_scaling_lock</code>.</td></tr>
+<tr><td>Put the gear and lane function in MediaTek's vendor module (files 02, 03 and the patch).</td><td>The debugfs is in the core, which can't call vendor code or see <code>struct ufs_mtk_host</code>. Files 05 and 06 target the core. The vendor version is still there if you ever want a sysfs node; it was never compiled.</td></tr>
+<tr><td>An early file 05 used a variable named <code>pwr</code>.</td><td>The parameter is <code>desired_pwr_mode</code>. Fixed in 05 and 06.</td></tr>
+<tr><td>The sequence was assumed to come straight from Qualcomm.</td><td>It came through a port for the MediaTek SoC, which took it from the Qualcomm SoC kernel.</td></tr>
+<tr><td>“Nobody sends <code>DME_HIBERNATE_EXIT</code>.”</td><td>Imprecise. The <span class="nw">W-LUN</span>'s wake-up sends it. It just never ran, because nothing woke the <span class="nw">W-LUN</span>.</td></tr>
+<tr><td>“Since v5.14…”, which read as if 6.6 had decided it.</td><td>It changed in 5.14 (2021); 6.6 inherited it. (Part 4)</td></tr>
+<tr><td>The link-state register was called <code>REG_UFS_PROBE</code>.</td><td>On MT6991 it's <code>REG_UFS_UFS_MMIO_OTSD_CTRL</code> (0x14C). <code>REG_UFS_PROBE</code> is the older chips' register. (2.3)</td></tr>
+</tbody>
+</table>
+
+<div class="box key">
+<span class="tag">Key point</span>
+<p>The bug wasn't in any one file. Each piece was right on its own terms: Qualcomm's line for Linux 4.19, the core's 2021 change, MediaTek's AH8 check for the case it was written for. The bug lived in the gap between them. Reading all three side by side is what found it.</p>
+</div>
+
+
+<h2 id="p8"><span class="num">8</span>How we know it's fixed</h2>
+
+<h3>8.1 Results so far</h3>
+<ul>
+<li>With the fix, and <code>clkscale_control</code> at 4: no <code>exit h8 state fail</code>.</li>
+<li>Lane changes from 2 to 1 pass.</li>
+</ul>
+<p>Two more checks turn that into proof. If you've already run them, skip ahead.</p>
+
+<h3>8.2 Test 1: recreate the old failure condition</h3>
+<p>The old failure needed the <span class="nw">W-LUN</span> asleep. But <code>echo 4</code> wakes the <span class="nw">W-LUN</span> for a moment (its first scale-up after boot does), so a write right after it could pass even with the old code. Make sure the <span class="nw">W-LUN</span> is asleep before you write:</p>
+<div class="box try">
+<span class="tag">Try it</span>
+<pre><code>W=/sys/bus/scsi/devices/0:0:0:49488/power/runtime_status   # the UFS Device W-LUN
+cat $W                  # repeat until it says: suspended
+cat $W; echo 112211 &gt; /sys/kernel/debug/…/power_mode; dmesg | tail</code></pre>
+<p>It passes if you see <code>suspended</code>, then no <code>exit h8 state fail</code>, and <code>state=1</code>. If <code>0:0:0:49488</code> isn't there, find it with <code>ls /sys/bus/scsi/devices | grep 49488</code>.</p>
+</div>
+
+<h3>8.3 Test 2: did the gear really change?</h3>
+<p>“No error” isn't proof, for four reasons:</p>
+<ol>
+<li><strong>The write never fails in the shell.</strong> <code>ufsdbg_power_mode_write()</code> ends with <code>return cnt;</code> even when the PMC failed, so <code>echo</code> always looks successful. Only dmesg tells you.</li>
+<li><strong>The success line in dmesg isn't from <code>power_mode</code>.</strong> <code>PMC Success! [RX, TX]: gear=…</code> comes from MediaTek's <code>ufs_mtk_config_pwr_mode()</code>, that is, from <code>echo 4</code>. The core path prints nothing on success (<code>ufshcd_print_pwr_info()</code> uses <code>dev_dbg</code>, <code>ufshcd.c:697</code>).</li>
+<li><strong>Asking for the current mode does nothing.</strong> If the request equals the current settings, <code>ufshcd_change_power_mode()</code> returns 0 without sending a PMC (“power already configured”, <code>ufshcd.c:4566</code>). Right after <code>echo 4</code> the link is at max gear, so asking for max gear tests nothing.</li>
+<li><strong><code>cat power_mode</code> shows what the core believes.</strong> It prints <code>hba-&gt;pwr_info</code>, which the core updates only after a successful PMC (<code>ufshcd.c:4638</code>). That's good evidence, but it's still software reporting on itself.</li>
+</ol>
+<p><strong>The physical check: the wire sets a speed limit.</strong> Whatever the software says, data can't move faster than the lanes carry it. The ceiling is bits per second × 0.8 (for 8b/10b) × number of lanes ÷ 8 bits per byte:</p>
+<table>
+<thead><tr><th>Gear</th><th class="n">Bits/s per lane</th><th class="n">Data per lane</th><th class="n">Ceiling, 2 lanes</th></tr></thead>
+<tbody>
+<tr><td><span class="nw">HS-G1</span>B</td><td class="n">1,457.6 M</td><td class="n">146 MB/s</td><td class="n">~290 MB/s</td></tr>
+<tr><td><span class="nw">HS-G3</span>B</td><td class="n">5,830.4 M</td><td class="n">583 MB/s</td><td class="n">~1.17 GB/s</td></tr>
+<tr><td><span class="nw">HS-G4</span>B</td><td class="n">11,660.8 M</td><td class="n">1,166 MB/s</td><td class="n">~2.3 GB/s</td></tr>
+<tr><td><span class="nw">HS-G5</span>B</td><td class="n">23,321.6 M</td><td class="n">~2,870 MB/s (128b/130b)</td><td class="n">~5.7 GB/s</td></tr>
+</tbody>
+</table>
+<p>These are ceilings before protocol overhead; real numbers land below them.</p>
+<div class="box try">
+<span class="tag">Try it</span>
+<p>Go to G1 (<code>112211</code>), then:</p>
+<pre><code>echo 3 &gt; /proc/sys/vm/drop_caches     # every run, or the read comes from RAM
+dd if=/dev/block/sda of=/dev/null bs=1M count=1024</code></pre>
+<p>At G1, anything above about 290&nbsp;MB/s means the link isn't at G1, because that's physically impossible. Then run the same at max gear and compare. Use G1 rather than G3: a simple <code>dd</code> may not fill a G3 link, so G3 and max gear could show similar numbers, while G1 is an unmistakable drop.</p>
+</div>
+
+<h3>8.4 Reading the <code>state=</code> print</h3>
+<p><code>state=1</code> (OPERATIONAL) means all good. <code>state=3</code> (EH_SCHEDULED_FATAL) means MediaTek's link check failed and a reset is queued: the old failure is back, so look at what woke (or didn't wake) the <span class="nw">W-LUN</span>.</p>
+
+
+<h2 id="p9"><span class="num">9</span>Open items</h2>
+<ul>
+<li>Run tests 1 and 2, if you haven't.</li>
+<li>Make <code>ufsdbg_power_mode_write()</code> return the real error instead of <code>cnt</code> after a failed PMC, so <code>echo</code> fails visibly.</li>
+<li>To go back to max gear, write it through <code>power_mode</code> or reboot; <code>echo 2</code> or <code>echo 4</code> won't do it (6.4).</li>
+<li>If the failure ever comes back, print register 0x14C inside <code>ufs_mtk_auto_hibern8_disable()</code> at the moment it fails (needs a vendor-module rebuild). Bits 31 to 24 reading 3 would confirm a link stuck in hibern8.</li>
+<li>The board's vendor tree and the OnePlus copy used here have the same vendor code, but check line numbers before relying on them.</li>
+<li><code>ufsdbg_cfg_pwr_param()</code> writes <code>hba-&gt;max_pwr_info.info.pwr_rx = FAST_MODE</code>. That's core state the error handler uses to restore the link. It's harmless today, because the chip already reports FAST there; don't write anything else into it.</li>
+</ul>
+
+
+<h2 id="p10"><span class="num">10</span>Glossary</h2>
+<dl class="gloss">
+<dt>AH8 (auto-hibern8)</dt><dd>The controller puts the link into hibern8 by itself after an idle time, and wakes it by itself when new commands arrive.</dd>
+<dt>AHIT</dt><dd>The controller register (offset 0x18) that holds the AH8 idle time. 0 means off.</dd>
+<dt><code>clk_scale_forbid</code></dt><dd>MediaTek flag set by <code>clkscale_control</code> values 3 and 4. It blocks MediaTek's own clock and gear changes until value 5 clears it.</dd>
+<dt>Clock gating</dt><dd>Switching the controller's clocks off during short idle gaps (at least 10&nbsp;ms on MediaTek). Separate from runtime PM. <code>ufshcd_hold()</code> blocks it.</dd>
+<dt>DME</dt><dd>The part of UniPro that takes management commands from the driver: <code>DME_GET</code>, <code>DME_SET</code>, <code>DME_HIBERNATE_ENTER</code>, <code>DME_HIBERNATE_EXIT</code>.</dd>
+<dt>Doorbell</dt><dd>Controller register (offset 0x58) with one bit per command slot. The driver sets a bit to start a command; the controller clears it when the command is done.</dd>
+<dt>EH (error handler)</dt><dd>The core's recovery work. It resets the controller and restarts the link.</dd>
+<dt>Gear</dt><dd>Bits per second per lane. <span class="nw">HS-G1</span> to G5 are the fast family; the PWM gears are the slow one.</dd>
+<dt>GKI</dt><dd>Google's Generic Kernel Image, the common kernel that holds the UFS core.</dd>
+<dt><code>hba</code></dt><dd>“Host bus adapter”: the core's <code>struct ufs_hba</code>, describing one controller. <code>hba-&gt;dev</code> is the controller's <code>struct device</code>.</dd>
+<dt>Hibern8</dt><dd>The link's deepest sleep that keeps its settings.</dd>
+<dt><code>host_sem</code></dt><dd>The core's semaphore that keeps user requests, error handling, system suspend and shutdown from overlapping.</dd>
+<dt>Lane</dt><dd>One pair of wires carrying data in one direction.</dd>
+<dt>LU</dt><dd>Logical unit: a readable, writable slice of the chip (<code>sda</code>, <code>sdb</code>, …).</dd>
+<dt><span class="nw">M-PHY</span></dt><dd>The electrical layer: the wires, their voltages, and recovering bits and timing from them.</dd>
+<dt>PMC</dt><dd>Power mode change: switching gear, lanes or mode.</dd>
+<dt>Rate A, rate B</dt><dd>The two base frequencies for HS gears. MediaTek uses B.</dd>
+<dt>Runtime PM</dt><dd>Linux's per-device sleep and wake while the system is running.</dd>
+<dt>SSU (START STOP UNIT)</dt><dd>The SCSI command that sets the chip's power mode: Active, Sleep, PowerDown.</dd>
+<dt>UIC command</dt><dd>A command for the link layer, written to controller register 0x90.</dd>
+<dt>UniPro</dt><dd>The link layer: frames, acknowledgements, re-sending, speed and power state.</dd>
+<dt>UPIU</dt><dd>The packet format that carries SCSI commands over UFS.</dd>
+<dt>vcore</dt><dd>The SoC's core supply voltage. The 499.2&nbsp;MHz <code>ufs_sel</code> source needs at least 0.65&nbsp;V.</dd>
+<dt>vops</dt><dd>The table of vendor hooks that the core calls.</dd>
+<dt><span class="nw">W-LUN</span></dt><dd>Well-known logical unit. The UFS Device <span class="nw">W-LUN</span> (<code>0xD0</code>, shown by Linux as <code>0:0:0:49488</code>) stands for the whole chip.</dd>
+</dl>
+
+
+<h2 id="p11"><span class="num">11</span>Files in this folder</h2>
+<p><code>~/Personal_Study/kernel/mt6991_ufs_gear_lane/</code></p>
+<table>
+<thead><tr><th>File</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td><code>01_mtk_reference.c</code></td><td>MediaTek's own <code>ufs_mtk_config_pwr_mode()</code>, with its steps marked [1] to [8]. The correct recipe, for reference.</td></tr>
+<tr><td><code>02_ufs_mtk_config_gear_lane.c</code></td><td>A gear and lane function for the vendor module. Alternative path; not compiled.</td></tr>
+<tr><td><code>03_gear_lane_sysfs.c</code></td><td>A sysfs file that calls 02.</td></tr>
+<tr><td><code>0001-ufs-mediatek-add-gear_lane-sysfs.patch</code></td><td>02 and 03 as a patch for the vendor tree. Applies to the OnePlus copy; not compiled.</td></tr>
+<tr><td><code>vendor_6.6/</code>, <code>patched_6.6/</code></td><td>The three MediaTek files before and after that patch.</td></tr>
+<tr><td><code>04_qcom_msm-4.19_ufsdbg_config_pwr_mode.c</code></td><td>Qualcomm's original, which was ported to the MediaTek SoC.</td></tr>
+<tr><td><code>05_core_ufs-debugfs_config_pwr_mode.c</code></td><td>A core version built on <code>ufs_debugfs_get_user_access()</code>.</td></tr>
+<tr><td><code>06_ported_ufsdbg_config_pwr_mode_fixed.c</code></td><td>The ported function, with the fixes marked <code>CHANGED</code>.</td></tr>
+<tr><td><code>UFS_gear_lane_fix_explained.html</code> and <code>.pdf</code></td><td>This document.</td></tr>
+</tbody>
+</table>
+
+
+<h2 id="p12"><span class="num">12</span>References</h2>
+<h4>Commits</h4>
+<ul>
+<li><code>b294ff3e3449</code>: “scsi: ufs: core: Enable power management for wlun”. Asutosh Das and Can Guo; committed 10 May 2021; in Linux 5.14. The change at the heart of Part 4.</li>
+<li><code>52abca64fd94</code>: “scsi: block: Do not accept any requests while suspended”. The block-layer change that turned the old design into a deadlock.</li>
+<li><code>7dec5cedf7b2</code>: “scsi: ufs: core: Serialize AHIT register access between sysfs and host driver”. Related; doesn't fix this.</li>
+<li><code>f29ec85ac4fd</code>: “scsi: ufs: host: mediatek: Return error directly on idle wait timeout”. Related; doesn't fix this.</li>
+</ul>
+<h4>Source copies read</h4>
+<ul>
+<li>MediaTek vendor code: OnePlus's public MT6991 tree, <code>kernel/kernel_device_modules-6.6/drivers/ufs/</code> (<code>ufs-mediatek.c</code>, <code>ufs-mediatek.h</code>, <code>ufs-mediatek-sysfs.c</code>) and <code>mt6991.dts</code>.</li>
+<li>Android common kernel <code>android15-6.6</code>: <code>drivers/ufs/core/ufshcd.c</code>, <code>ufs-debugfs.c</code>, <code>ufshcd-priv.h</code>, <code>include/ufs/ufshcd.h</code>.</li>
+<li>Upstream Linux v5.13 and v5.14: <code>drivers/scsi/ufs/ufshcd.c</code>.</li>
+<li>Qualcomm msm-4.19 (LineageOS sm8250 kernel): <code>drivers/scsi/ufs/ufs-debugfs.c</code>.</li>
+<li>The ported code in <code>kernel-6.6/drivers/ufs/core/ufs-debugfs.c</code>, 31 October 2026.</li>
+</ul>
+
+<p class="end">Written with Claude Code, 31 October 2026, from a debugging session with Shrihari. All line numbers refer to the source copies listed above.</p>
+
+</body>
+</html>

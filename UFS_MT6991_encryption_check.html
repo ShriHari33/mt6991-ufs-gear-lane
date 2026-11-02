@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checking encryption on your MT6991 image</title>
+<style>
+:root {
+  --ink: #1c2128;
+  --muted: #59636e;
+  --rule: #d8dee4;
+  --soft: #f6f8fa;
+  --blue: #1f5fbf;   --blue-soft: #e8f0fb;
+  --green: #2f8a4f;  --green-soft: #eaf6ee;
+  --amber: #a26f00;  --amber-soft: #fff6dc;
+  --violet: #6b45b3; --violet-soft: #f3eefb;
+  --red: #b83a3a;    --red-soft: #fcecec;
+  --orange: #b85c00; --orange-soft: #fdf0e3;
+}
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html { background: #fff; }
+body {
+  margin: 0 auto; max-width: 47rem; padding: 2.6rem 1.4rem 5rem;
+  font: 16px/1.62 "Noto Serif", "Charter", Georgia, serif;
+  color: var(--ink);
+}
+h1, h2, h3, h4, .tag, figcaption, th, .toc, .meta, .flow, .stack, .legend, .src, .small, .label {
+  font-family: "Noto Sans", "DejaVu Sans", sans-serif;
+}
+h1 { font-size: 2.05rem; line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.01em; }
+.subtitle { font-size: 1.12rem; color: var(--muted); margin: 0 0 1.2rem; line-height: 1.45; }
+.meta { font-size: .8rem; color: var(--muted); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: .55rem 0; margin-bottom: 1.6rem; }
+h2 { font-size: 1.5rem; line-height: 1.25; margin: 3.2rem 0 .8rem; padding-top: .7rem; border-top: 3px solid var(--ink); }
+h2 .num { color: var(--blue); margin-right: .4em; }
+h3 { font-size: 1.13rem; margin: 2.1rem 0 .5rem; }
+h4 { font-size: .98rem; margin: 1.5rem 0 .35rem; }
+p { margin: .65rem 0; }
+ul, ol { padding-left: 1.4rem; margin: .6rem 0; }
+li { margin: .28rem 0; }
+li > ol, li > ul { margin: .3rem 0; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { font-weight: 700; }
+code {
+  font-family: "DejaVu Sans Mono", "Noto Mono", monospace; font-size: .8em;
+  background: var(--soft); border: 1px solid #e3e8ee; border-radius: 4px; padding: .04em .28em;
+  overflow-wrap: anywhere;
+}
+pre {
+  font-family: "DejaVu Sans Mono", "Noto Mono", monospace; font-size: .74rem; line-height: 1.5;
+  background: var(--soft); border: 1px solid var(--rule); border-radius: 8px;
+  padding: .75rem .95rem; overflow-x: auto; margin: .8rem 0 .2rem; white-space: pre;
+}
+pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+pre .hl { background: #fff1b8; }
+pre .bad { background: #f9d5d5; }
+pre .good { background: #d4efdc; }
+pre .dim { color: #8a939d; }
+.src { display: block; font-size: .7rem; color: var(--muted); text-align: right; margin: 0 0 1rem; }
+.nw { white-space: nowrap; }
+.small { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+
+.box { border-left: 4px solid; border-radius: 0 8px 8px 0; padding: .7rem 1rem .75rem; margin: 1.15rem 0; }
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+.box .tag { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; margin-bottom: .3rem; }
+.plain  { background: var(--amber-soft);  border-color: var(--amber); }  .plain .tag  { color: var(--amber); }
+.two    { background: var(--violet-soft); border-color: var(--violet); } .two .tag    { color: var(--violet); }
+.wrong  { background: var(--red-soft);    border-color: var(--red); }    .wrong .tag  { color: var(--red); }
+.try    { background: var(--green-soft);  border-color: var(--green); }  .try .tag    { color: var(--green); }
+.key    { background: var(--blue-soft);   border-color: var(--blue); }   .key .tag    { color: var(--blue); }
+.warn   { background: var(--orange-soft); border-color: var(--orange); } .warn .tag   { color: var(--orange); }
+.box pre { background: #fff; }
+
+table { border-collapse: collapse; width: 100%; margin: .9rem 0; font-size: .88rem; line-height: 1.45; }
+th, td { border-bottom: 1px solid var(--rule); padding: .42rem .55rem; text-align: left; vertical-align: top; }
+th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 2px solid var(--ink); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td code { font-size: .78em; }
+
+figure { margin: 1.5rem 0; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { font-size: .78rem; color: var(--muted); margin-top: .5rem; line-height: 1.45; }
+
+.toc { font-size: .9rem; line-height: 1.55; columns: 2; column-gap: 2rem; margin: .4rem 0 1rem; }
+.toc ol { margin: 0; padding-left: 1.3rem; }
+.toc li { break-inside: avoid; margin: .12rem 0; }
+.toc .pg { float: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media screen { .toc .pg { display: none; } }
+.legend { display: grid; grid-template-columns: max-content 1fr; gap: .35rem .8rem; font-size: .86rem; align-items: baseline; margin: .6rem 0 1rem; }
+.legend .chip { font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .12rem .45rem; border-radius: 4px; border-left: 3px solid; }
+.chip.plain { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+.chip.two { background: var(--violet-soft); border-color: var(--violet); color: var(--violet); }
+.chip.wrong { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+.chip.try { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+.chip.key { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+.chip.warn { background: var(--orange-soft); border-color: var(--orange); color: var(--orange); }
+
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .55rem; margin: .5rem 0 1rem; font-size: .76rem; line-height: 1.35; }
+.flow .step { position: relative; background: #fff; border: 1px solid var(--rule); border-radius: 8px; padding: .45rem .5rem; }
+.flow .step:not(:last-child)::after { content: "→"; position: absolute; right: -.52rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .8rem; }
+.flow .step b { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .15rem; }
+.flow code { overflow-wrap: normal; font-size: .74em; }
+.flow .fail { border-color: var(--red); background: var(--red-soft); }
+.flow .ok { border-color: var(--green); background: var(--green-soft); }
+.flow .sleep { border-color: var(--orange); background: var(--orange-soft); }
+.flowlabel { font-family: "Noto Sans", sans-serif; font-weight: 700; font-size: .82rem; margin: 1rem 0 .2rem; }
+
+.stack { margin: 1rem 0; font-size: .84rem; line-height: 1.4; }
+.stack .layer { display: grid; grid-template-columns: 9.5rem 1fr; gap: .8rem; border: 1px solid var(--rule); border-radius: 8px; padding: .55rem .75rem; margin: .3rem 0; }
+.stack .layer .name { font-weight: 700; }
+.stack .l3 { background: #f2f0fb; } .stack .l2 { background: #e8f0fb; } .stack .l1 { background: #eef1f4; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 1rem 0; }
+.split .box { margin: 0; }
+@media screen and (max-width: 720px) { .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .flow .step::after { display: none; } .split, .legend { grid-template-columns: 1fr; } .toc { columns: 1; } .stack .layer { grid-template-columns: 1fr; } }
+
+dl.gloss { margin: .6rem 0; }
+dl.gloss dt { font-family: "Noto Sans", sans-serif; font-weight: 700; font-size: .9rem; margin-top: .7rem; }
+dl.gloss dd { margin: .1rem 0 0 0; }
+
+.end { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--rule); font-size: .8rem; color: var(--muted); font-family: "Noto Sans", sans-serif; }
+
+@page { size: A4; margin: 15mm 14mm 17mm 14mm; }
+@media print {
+  body { max-width: none; padding: 0; font-size: 9.7pt; }
+  h2 { break-before: page; margin-top: 0; }
+  h3, h4 { break-after: avoid; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 7.5pt; }
+  .box, figure, pre, .flow, .stack, .split, .legend, tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  .toc { break-inside: avoid; }
+  a { color: inherit; }
+}
+
+.lbl { display: inline-block; font-family: "Noto Sans", "DejaVu Sans", sans-serif; font-size: .58rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; border: 1px solid; border-radius: 4px; padding: .06rem .36rem; margin-right: .45rem; vertical-align: .12em; white-space: nowrap; line-height: 1.5; }
+.lbl.seen  { color: #17703f; background: #e7f5ee; border-color: #9fd3b6; }
+.lbl.code  { color: #3149a8; background: #eaeefc; border-color: #b4c2f0; }
+.lbl.guess { color: #a8326e; background: #fbeaf3; border-color: #e8b3cf; }
+.legend .lbl { justify-self: start; margin-right: 0; }
+td .lbl { margin-top: .2rem; }
+dl.gloss.cols { columns: 2; column-gap: 1.6rem; }
+dl.gloss.cols > div { break-inside: avoid; padding-top: .55rem; }
+dl.gloss.cols dt { margin-top: 0; }
+</style>
+</head>
+<body>
+<header>
+<h1>Checking encryption on the MT6991 image</h1>
+<p class="subtitle">Four read-only checks that tell you whether <code>/data</code> is encrypted, and whether the UFS controller's AES engine or the CPU does the work. Explained from scratch.</p>
+<div class="meta">Written 1 November 2026 · MediaTek MT6991 SoC evaluation board (<code>k6991v1_64</code>) · Android GKI kernel 6.6 (<code>android15-6.6</code>) with MediaTek vendor modules · Companion to <em>UFS on MT6991: the bug, the fix, and the G5 puzzle</em>. It expands that document's section 4.5.</div>
+</header>
+
+<div class="box key">
+<span class="tag">The answer on one page</span>
+<ol>
+<li>There are two separate questions. <strong>Is <code>/data</code> encrypted at all?</strong> And if it is, <strong>which piece of silicon does the AES maths</strong>: the engine inside the UFS controller, or the CPU?</li>
+<li>Only the engine case lets the encryption clock, <code>ufs_fde</code> (416 or 546&nbsp;MHz), affect the G5 numbers. That's why the second question matters.</li>
+<li>Four checks answer both in about two minutes. All of them only read: two properties, the <code>/data</code> mount line, one sysfs folder, and one line in the kernel log.</li>
+<li>The line that settles it is <code>fscrypt: AES-256-XTS using blk-crypto (native)</code>. If you see it, the controller's engine encrypts every file block written to <code>/data</code>.</li>
+<li>Found while writing this: if the CPU does the encryption inside the filesystem, f2fs silently turns fio's <code>direct=1</code> into ordinary buffered I/O for encrypted files. That alone could make numbers wander (section 3).</li>
+<li>Nothing has been run on the board for this document yet. What the checks print will be the first real data on this question.</li>
+</ol>
+</div>
+
+<h3>How to read this</h3>
+<p>Same conventions as the main write-up. Important claims carry one of three labels:</p>
+<div class="legend">
+<span class="lbl seen">Seen on the board</span><span>Measured on the board: a screenshot, a dmesg line, a benchmark.</span>
+<span class="lbl code">From the code</span><span>I read it in the source copies in <code>sources/</code>, with the file and line.</span>
+<span class="lbl guess">Not yet proven</span><span>A hypothesis. The test that would settle it is always next to it.</span>
+</div>
+<p class="small">Line numbers point into the copies in <code>sources/</code>: <code>android15-6.6/</code> (Android common kernel), <code>mtk_vendor_6.6/</code> (MediaTek's code from OnePlus's public MT6991 tree) and, new here, <code>upstream_v6.18/</code>: eight upstream Linux 6.18 files, because the fscrypt, f2fs and block-layer files of <code>android15-6.6</code> aren't on this machine.</p>
+
+<h3>Contents</h3>
+<nav class="toc">
+<ol>
+<li><a href="#p1">The picture: where encryption can happen</a><span class="pg">2</span></li>
+<li><a href="#p2">The four checks</a><span class="pg">4</span></li>
+<li><a href="#p3">What each answer means for G5</a><span class="pg">8</span></li>
+<li><a href="#p4">Reference: changes, sources, glossary</a><span class="pg">10</span></li>
+</ol>
+</nav>
+
+<h2 id="p1"><span class="num">1</span>The picture: where encryption can happen</h2>
+
+<div class="box plain">
+<span class="tag">Plain words</span>
+<p>Encrypting <code>/data</code> means this: before a block of a file leaves for the flash chip, something scrambles it with AES and a secret key, and on the way back the same thing unscrambles it. The flash chip only ever stores the scrambled version, so someone who desolders it gets noise. Whether this happens at all, and which piece of silicon does the scrambling, depends on how the image was built.</p>
+</div>
+
+<h3>1.1 The trip a write takes</h3>
+<p>When fio writes to a file on <code>/data</code>, the data passes down through the software and then out through the hardware. On the hardware path it looks like this:</p>
+<div class="flow">
+<div class="step"><b>App</b>fio calls <code>write()</code> or submits through io_uring</div>
+<div class="step"><b>f2fs + fscrypt</b>picks the file's key and each block's number</div>
+<div class="step"><b>Block layer</b><code>blk-crypto</code> attaches the key to the request</div>
+<div class="step"><b>UFS driver</b>writes slot and block number into the request record</div>
+<div class="step ok"><b>Controller</b>DMA pulls the data from DRAM; the AES engine encrypts it in passing</div>
+<div class="step"><b>UFS chip</b>stores what arrives, already scrambled</div>
+</div>
+<p class="small">This is path C in the table below. On the other two paths the CPU does the AES step earlier, and the controller passes the data through untouched.</p>
+
+<h3>1.2 Three places the AES maths can happen</h3>
+<table>
+<thead><tr><th>Path</th><th>Where AES runs</th><th>When it applies</th><th>What it costs</th></tr></thead>
+<tbody>
+<tr><td><strong>A</strong> · in the filesystem</td><td>CPU, inside fscrypt, before the block layer</td><td><code>/data</code> mounted <em>without</em> <code>inlinecrypt</code></td><td>The CPU encrypts every byte into a spare "bounce" page and writes that. f2fs also refuses direct I/O on encrypted files (section 3).</td></tr>
+<tr><td><strong>B</strong> · in the block layer</td><td>CPU, inside <code>blk-crypto-fallback</code></td><td><code>inlinecrypt</code> set, but no engine registered</td><td>The CPU encrypts every byte, again through bounce pages. Direct I/O still works.</td></tr>
+<tr><td><strong>C</strong> · inline, in hardware</td><td>The AES engine inside the UFS controller</td><td><code>inlinecrypt</code> set, and the engine registered</td><td>No AES work on the CPU. The engine's speed is set by its clock, <code>ufs_fde</code>.</td></tr>
+</tbody>
+</table>
+<div class="box key">
+<span class="tag">Key point</span>
+<p>Two switches pick the path. The mount option <code>inlinecrypt</code> decides between A and the other two. Whether the controller registered its engine decides between B and C. Checks 2 and 3 read those two switches, and check 4 reads the kernel's own note of which path it took.</p>
+</div>
+
+<h3>1.3 How the engine works</h3>
+<p>The engine is a block of logic inside the UFS host controller, the part of the MT6991 that talks to the storage chip. Its design comes from the UFS host controller standard (UFSHCI), so every UFS controller with crypto works the same way:</p>
+<ol>
+<li><strong>Key slots.</strong> The engine has a small set of registers called key slots, each holding one AES key. When a file's key is first needed, the kernel loads it into a free slot. <code>num_keyslots</code> in check 3 tells you how many there are.</li>
+<li><strong>Tagged requests.</strong> After that, a request carries only two extra numbers: which slot to use, and a <em>data unit number</em> worked out from the file and the block's position in it. The UFS driver writes both into the request's transfer descriptor, the small record the controller reads before it moves any data.</li>
+<li><strong>Encryption on the fly.</strong> As the controller's DMA pulls the data out of DRAM, the AES engine encrypts it in passing, and the scrambled bytes go out on the wires. On a read it decrypts as the data comes in. The block's number is mixed into the encryption (that's what the "XTS" in AES-256-XTS does), so two identical blocks in different places come out different.</li>
+</ol>
+<p><span class="lbl code">From the code</span>The device tree shows the engine as real hardware. It has its own clock selector, <code>ufs_fde</code> (<code>mt6991.dts:6704</code> and <code>:6720</code>), with two sources to pick from: 416&nbsp;MHz (<code>ck_univpll_d6</code>, <code>:6705</code>) and 546&nbsp;MHz (<code>ck_mainpll_d4</code>, <code>:6706</code>). It has its own clock gate, <code>ufshci_aes</code> (<code>:6714</code>, <code>:6730</code>), and its own reset line, <code>crypto_rst</code> (<code>:6758</code>; reset bit 2, "ufs-crypto", at <code>:847</code>). MediaTek pulses that reset along with the others whenever it resets the controller (<code>ufs-mediatek.c:276</code> and <code>:283</code>).</p>
+<p><span class="lbl seen">Seen on the board</span>During the steady-3000 run, <code>ck_aes_ufsfde_sel</code> (the board's name for <code>ufs_fde</code>) sat at 416&nbsp;MHz (main write-up, section 4.2).</p>
+
+<h3>1.4 Two more pieces</h3>
+<ul>
+<li><strong>File names</strong> are encrypted too, with a different mode, AES-256-CTS-CBC. The CPU always does that, and the amount of data is tiny, so it never matters for throughput.</li>
+<li><strong>Metadata encryption.</strong> fscrypt covers only file contents and names. Android can also encrypt everything else on the partition (f2fs's own bookkeeping, file sizes, which blocks are in use) with a second key, through a device-mapper layer called <code>dm-default-key</code> that sits under <code>/data</code>. It uses the same engine when one is registered, and it skips blocks fscrypt already encrypted, so nothing is encrypted twice.</li>
+</ul>
+
+<h2 id="p2"><span class="num">2</span>The four checks</h2>
+<p>Run these as root. <code>adb root</code> comes first, because <code>dmesg</code> and <code>dmctl</code> need it. None of them changes anything on the board.</p>
+
+<div class="box try">
+<span class="tag">Try it: all four checks</span>
+<pre>adb root &amp;&amp; adb shell
+
+# 1. Is /data encrypted at all?
+getprop ro.crypto.state                 # encrypted / unencrypted
+getprop ro.crypto.type                  # file = file-based encryption
+
+# 2. What the image asks for, and what is in effect now
+grep userdata /vendor/etc/fstab.*
+grep ' /data ' /proc/mounts
+dmctl list devices                      # only if /data comes from /dev/block/dm-N
+
+# 3. Did the controller hand its AES engine to Linux?
+ls /sys/block/sda/queue/crypto/
+cat /sys/block/sda/queue/crypto/modes/AES-256-XTS
+cat /sys/block/sda/queue/crypto/num_keyslots
+dmesg | grep "crypto enable failed"
+
+# 4. Which path did the kernel pick for file contents?
+dmesg | grep fscrypt
+logcat -b kernel -d | grep fscrypt      # if dmesg has already wrapped</pre>
+</div>
+
+<h3>Check 1: is <code>/data</code> encrypted at all?</h3>
+<p>Android's init sets these two properties when it mounts <code>/data</code> at boot. They answer only the first question, not who does the work.</p>
+<table>
+<thead><tr><th>You see</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>encrypted</code> and <code>file</code></td><td>File-based encryption is on. Go on to check 2.</td></tr>
+<tr><td><code>unencrypted</code></td><td>No encryption. Stop here: the encryption engine can't be limiting <code>/data</code>, and the rest of this document doesn't apply.</td></tr>
+</tbody>
+</table>
+
+<h3>Check 2: what the image asks for, and what's in effect</h3>
+<p>The fstab file is the image's list of mount instructions, one line per partition. <code>/proc/mounts</code> is what the kernel is actually doing right now. Look at the <code>userdata</code> line in the first and the <code>/data</code> line in the second.</p>
+<table>
+<thead><tr><th>Where</th><th>You see</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>fstab</td><td><code>fileencryption=aes-256-xts:aes-256-cts:v2</code></td><td>The image asks for file-based encryption: AES-256-XTS for contents, AES-256-CTS for names, policy version 2.</td></tr>
+<tr><td>fstab</td><td><code>+inlinecrypt_optimized</code> after that</td><td>A key layout chosen so the engine needs fewer key slots. A sign the image's makers expected a hardware engine.</td></tr>
+<tr><td>fstab</td><td><code>metadata_encryption=…</code></td><td>Metadata encryption is on too (section 1.4).</td></tr>
+<tr><td>mounts</td><td><code>inlinecrypt</code> in the options</td><td>Path B or C: fscrypt hands file contents to the block layer. Check 3 says which.</td></tr>
+<tr><td>mounts</td><td>no <code>inlinecrypt</code></td><td>Path A: the CPU encrypts inside fscrypt, and the engine sits idle.</td></tr>
+<tr><td>mounts</td><td><code>/data</code> mounted from <code>/dev/block/dm-N</code></td><td>A device-mapper layer sits under <code>/data</code>, normally <code>dm-default-key</code>. <code>dmctl list devices</code> names it, and <code>dmctl table &lt;name&gt;</code> should show <code>default-key</code>.</td></tr>
+</tbody>
+</table>
+<p><span class="lbl code">From the code</span>f2fs adds <code>,inlinecrypt</code> to the options it reports if it was mounted with it (<code>upstream_v6.18/fs/f2fs/super.c:2435</code>).</p>
+
+<h3>Check 3: did the controller hand its engine to Linux?</h3>
+<p>The folder <code>/sys/block/sdX/queue/crypto/</code> exists only if the block layer has an engine registered for that disk. The kernel's own documentation says so: "The presence of this subdirectory … indicates that the device supports inline encryption" (<code>upstream_v6.18/Documentation/ABI/stable/sysfs-block:242–250</code>).</p>
+<p><span class="lbl code">From the code</span>On the board the folder appears only if all four of these steps succeed:</p>
+<ol>
+<li>MediaTek's driver declares that the controller has an engine: <code>hba-&gt;caps |= UFSHCD_CAP_CRYPTO</code> (<code>ufs-mediatek.c:1757</code>).</li>
+<li>At probe, the core reads the controller's crypto capability registers (<code>ufshcd.c:2350</code>). It keeps crypto only if the hardware's own capability bit is set as well (<code>upstream_v6.18/drivers/ufs/core/ufshcd-crypto.c:162</code>).</li>
+<li>Every time the controller starts, MediaTek asks its secure firmware to switch the engine on (<code>ufs-mediatek.c:334–335</code>, calling <code>ufs_mtk_crypto_enable()</code> at <code>:258</code>). If the firmware refuses, the driver prints <code>crypto enable failed</code> (<code>:264</code>) and turns crypto off (<code>:266</code>).</li>
+<li>For each LU, the core registers the engine with that disk's queue (<code>ufshcd.c:5255</code>), but only if crypto is still on (<code>ufshcd-crypto.c:235</code>).</li>
+</ol>
+<table>
+<thead><tr><th>You see</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>The folder, with <code>modes/AES-256-XTS</code> in it</td><td>The engine is registered. The value is a hex bitmask of the block sizes it handles: <code>0x1000</code> means 4096 bytes. The kernel's own example, <code>0x1200</code>, means 512 and 4096 (<code>sysfs-block:288–291</code>).</td></tr>
+<tr><td><code>num_keyslots</code></td><td>How many keys the engine can hold at once.</td></tr>
+<tr><td>"No such file or directory"</td><td>No engine. If check 2 showed <code>inlinecrypt</code>, you're on path B: the CPU does the work.</td></tr>
+<tr><td><code>crypto enable failed</code> in dmesg</td><td>MediaTek's firmware refused. Crypto is off, so there's no folder.</td></tr>
+</tbody>
+</table>
+<div class="box warn">
+<span class="tag">Watch out</span>
+<ul>
+<li>Any <code>sdX</code> works. The core registers the same engine on every LU (step 4), so <code>sda</code> also answers for the disk that holds <code>userdata</code>.</li>
+<li>If there's no <code>crypto enable failed</code> line after a long uptime, that proves little: the log may have scrolled past it. The folder is the reliable answer.</li>
+<li>You'll never see <code>crypto setup failed</code> (<code>ufshcd.c:2352</code>) on a running board. That error stops the UFS probe, so a board that boots from UFS hasn't hit it.</li>
+</ul>
+</div>
+
+<h3>Check 4: which path did the kernel pick?</h3>
+<p>fscrypt prints one line per encryption mode, once per boot, the first time it sets up a key in that mode. That happens early in boot, when Android unlocks the first keys.</p>
+<table>
+<thead><tr><th>Line</th><th>Path</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>fscrypt: AES-256-XTS using blk-crypto (native)</code></td><td>C</td><td><strong>The controller's engine encrypts file contents.</strong> This is the line that settles it.</td></tr>
+<tr><td><code>fscrypt: AES-256-XTS using blk-crypto-fallback</code></td><td>B</td><td>The block-layer path was chosen, but the CPU does the work.</td></tr>
+<tr><td><code>fscrypt: AES-256-XTS using implementation "xts-aes-ce"</code></td><td>A</td><td>The CPU does the work inside fscrypt, with its ARMv8 crypto instructions ("ce" stands for Crypto Extensions).</td></tr>
+<tr><td><code>fscrypt: AES-256-CTS-CBC using implementation "…"</code></td><td>none</td><td>File names. Always the CPU, tiny amounts of data. Ignore it.</td></tr>
+<tr><td>nothing at all</td><td>none</td><td>Either the line has scrolled out of the log (use the <code>logcat</code> line, or grep right after a reboot), or <code>/data</code> isn't encrypted (check 1).</td></tr>
+</tbody>
+</table>
+<p><span class="lbl code">From the code</span>Paths C and B: <code>upstream_v6.18/fs/crypto/inline_crypt.c:83</code> and <code>:86</code>. Path A: <code>fs/crypto/keysetup.c:127</code>, which prints the driver name <code>"xts-aes-" MODE</code> from <code>arch/arm64/crypto/aes-glue.c:723</code>, where <code>MODE</code> is <code>"ce"</code> (<code>:27</code>).</p>
+<p><span class="lbl guess">Not yet proven</span>These lines were read in upstream Linux 6.18, not in <code>android15-6.6</code>. The sysfs folder from check 3 has been in the kernel since 2022 (its documentation is dated February 2022), well before 6.6, and the fscrypt lines are expected in a 6.6 kernel too. If check 1 says <code>encrypted</code> but check 4 prints nothing even right after a reboot, the 6.6 kernel words it differently: look for the matching <code>pr_info</code> in its <code>fs/crypto/</code>.</p>
+
+<h3>Optional: what the kernel was built to support</h3>
+<pre>zcat /proc/config.gz | grep -E "BLK_INLINE_ENCRYPTION|FS_ENCRYPTION|SCSI_UFS_CRYPTO|DM_DEFAULT_KEY"</pre>
+<table>
+<thead><tr><th>Option</th><th>What it allows</th></tr></thead>
+<tbody>
+<tr><td><code>CONFIG_BLK_INLINE_ENCRYPTION</code></td><td>The block layer can attach a key to each request.</td></tr>
+<tr><td><code>CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK</code></td><td>The CPU can stand in when no engine is registered (path B).</td></tr>
+<tr><td><code>CONFIG_FS_ENCRYPTION_INLINE_CRYPT</code></td><td>fscrypt may use the block-layer path at all.</td></tr>
+<tr><td><code>CONFIG_SCSI_UFS_CRYPTO</code></td><td>The UFS driver can drive the engine.</td></tr>
+<tr><td><code>CONFIG_DM_DEFAULT_KEY</code></td><td>The metadata-encryption layer exists. Android-only.</td></tr>
+</tbody>
+</table>
+<p class="small"><code>=y</code> means built in. A missing line means the feature isn't in this kernel. <code>/proc/config.gz</code> exists only if the kernel was built to carry its own configuration.</p>
+
+<h2 id="p3"><span class="num">3</span>What each answer means for G5</h2>
+<p>The open question from the main write-up: at G5, writes to <code>/data</code> wander between about 3000 and 3700&nbsp;MB/s, while G4 and G1 stay steady. The leading suspect is the engine's clock sitting at 416&nbsp;MHz instead of 546. That suspect only exists on path C.</p>
+<table>
+<thead><tr><th>Check 4 says</th><th>Can <code>ufs_fde</code> limit <code>/data</code>?</th><th>Next step</th></tr></thead>
+<tbody>
+<tr><td><strong>C</strong> · <code>blk-crypto (native)</code></td><td>Yes. Every byte written to <code>/data</code> passes through the engine.</td><td>Do the decisive run (main write-up, 4.11): engine clock at 546&nbsp;MHz during the write, then 10 rounds of G5L2↔G1L2.</td></tr>
+<tr><td><strong>B</strong> · <code>blk-crypto-fallback</code></td><td>No. The engine is idle.</td><td>The CPU does AES on every byte, so CPU speed becomes a limit. <span class="lbl guess">Not yet proven</span>That would fit the SQPOLL result (3200 → 3800&nbsp;MB/s).</td></tr>
+<tr><td><strong>A</strong> · <code>implementation "xts-aes-ce"</code></td><td>No.</td><td>As for B, and read the box below: direct I/O isn't direct.</td></tr>
+<tr><td><code>unencrypted</code> (check 1)</td><td>No.</td><td>Look at f2fs garbage collection and discard, WriteBooster, and the CPU.</td></tr>
+</tbody>
+</table>
+
+<div class="box warn">
+<span class="tag">Watch out: path A quietly changes the benchmark</span>
+<p><span class="lbl code">From the code</span>f2fs does direct I/O on an encrypted file only if that file uses the block-layer path. <code>f2fs_force_buffered_io()</code> answers "force buffered" when <code>fscrypt_dio_supported()</code> says no (<code>upstream_v6.18/fs/f2fs/file.c:934–939</code>), and fscrypt says no on path A: "We only support DIO with inline crypto, not fs-layer crypto" (<code>fs/crypto/inline_crypt.c:453</code>). <code>f2fs_should_use_dio()</code> then returns false (<code>file.c:4723</code>, <code>:4731</code>), and the write goes through the normal buffered path with no error.</p>
+<p>So on path A, fio's <code>direct=1</code> never reaches the disk directly. Writes land in RAM first, in the page cache, and the kernel flushes them to the disk in bursts. What fio measures then depends on how much unwritten data has piled up in RAM, which is exactly the kind of thing that makes numbers wander from run to run.</p>
+<p><span class="lbl guess">Not yet proven</span>That this happens on the board. Checks 2 and 4 tell you whether you're on path A at all.</p>
+</div>
+
+<div class="box try">
+<span class="tag">Try it: a read-only look at the engine</span>
+<p>A read of the raw disk carries no key, so it never goes through the engine. A read of a big file in <code>/data</code> does, on path C. If both are equally fast and steady at G5, the engine isn't what limits reads. Writes could still differ, but this test is safe to run any time.</p>
+<pre>ls -l /dev/block/by-name/userdata       # for example -&gt; /dev/block/sdc39: the disk is sdc
+echo 3 &gt; /proc/sys/vm/drop_caches        # empty the page cache first
+
+fio --name=raw  --filename=/dev/block/sdc --readonly --rw=read --bs=512k \
+    --iodepth=64 --ioengine=io_uring --direct=1 --size=4g --runtime=20 --time_based
+
+fio --name=file --filename=/data/local/tmp/fio_4g.bin --readonly --rw=read --bs=512k \
+    --iodepth=64 --ioengine=io_uring --direct=1 --size=4g --runtime=20 --time_based</pre>
+<p><code>--readonly</code> makes fio refuse to write, which matters on a raw disk. For the second run, use a file the write runs already created; the name here is only an example. The comparison only means something on path C. On path A the file read goes through the page cache (the box above), and its numbers aren't comparable.</p>
+</div>
+
+<h2 id="p4"><span class="num">4</span>Reference: changes, sources, glossary</h2>
+
+<h3>4.1 What this changes in the main write-up</h3>
+<ul>
+<li>Section 4.5 says the <code>inlinecrypt</code> mount option "chooses the hardware". More exactly, it chooses the block-layer path. The hardware does the work only if the engine is registered (check 3). Otherwise the CPU does it through <code>blk-crypto-fallback</code> (path B).</li>
+<li>Section 4.5's "Try it" box had two of these checks. This document adds the properties, the sysfs folder, the fscrypt line that names the path, and the f2fs direct-I/O rule.</li>
+</ul>
+
+<h3>4.2 Where each claim comes from</h3>
+<table>
+<thead><tr><th>Claim</th><th>File and line, in <code>sources/</code></th></tr></thead>
+<tbody>
+<tr><td>MediaTek declares the engine</td><td><code>mtk_vendor_6.6/ufs-mediatek.c:1757</code></td></tr>
+<tr><td>Secure-firmware switch-on, and what a refusal does</td><td><code>ufs-mediatek.c:258–267</code>, called at <code>:334–335</code></td></tr>
+<tr><td>Crypto reset pulsed with the others</td><td><code>ufs-mediatek.c:276</code>, <code>:283</code></td></tr>
+<tr><td>Engine clock, its sources, gate and reset</td><td><code>mtk_vendor_6.6/mt6991.dts:6704–6706</code>, <code>:6714</code>, <code>:6720–6722</code>, <code>:6730</code>, <code>:6758</code>, <code>:847</code></td></tr>
+<tr><td>Core reads crypto capabilities at probe</td><td><code>android15-6.6/ufshcd.c:2350</code>, failure message <code>:2352</code></td></tr>
+<tr><td>Engine registered on each LU</td><td><code>android15-6.6/ufshcd.c:5255</code></td></tr>
+<tr><td>Hardware bit required; registration only while crypto is on</td><td><code>upstream_v6.18/drivers/ufs/core/ufshcd-crypto.c:162</code>, <code>:235</code></td></tr>
+<tr><td>What the sysfs folder means, and its value format</td><td><code>upstream_v6.18/Documentation/ABI/stable/sysfs-block:242–299</code></td></tr>
+<tr><td>The sysfs files themselves</td><td><code>upstream_v6.18/block/blk-crypto-sysfs.c:41–50</code></td></tr>
+<tr><td>fscrypt's log lines</td><td><code>upstream_v6.18/fs/crypto/inline_crypt.c:83</code>, <code>:86</code>; <code>fs/crypto/keysetup.c:127</code></td></tr>
+<tr><td>arm64 AES driver name</td><td><code>upstream_v6.18/arch/arm64/crypto/aes-glue.c:27</code>, <code>:723</code></td></tr>
+<tr><td>f2fs reports <code>inlinecrypt</code></td><td><code>upstream_v6.18/fs/f2fs/super.c:2435</code></td></tr>
+<tr><td>f2fs refuses direct I/O on path A</td><td><code>upstream_v6.18/fs/f2fs/file.c:934–939</code>, <code>:4723</code>, <code>:4731</code>; <code>fs/crypto/inline_crypt.c:444–453</code></td></tr>
+</tbody>
+</table>
+<p class="small">The upstream files come from the shallow Linux 6.18 clone in <code>~/Personal_Study/kernel/linux</code> (5 December 2025), copied with their kernel paths. Android properties, fstab syntax, <code>dmctl</code> and <code>logcat</code> are Android behaviour and aren't in these copies.</p>
+
+<h3>4.3 Glossary</h3>
+<dl class="gloss cols">
+<div><dt>AES-256-XTS</dt><dd>The cipher mode for file contents. XTS mixes each block's position into the encryption, so identical blocks encrypt differently.</dd></div>
+<div><dt>AES-256-CTS-CBC</dt><dd>The cipher mode for file names. Always done by the CPU.</dd></div>
+<div><dt>blk-crypto</dt><dd>The block layer's support for attaching a key to each request, so hardware further down can do the encryption.</dd></div>
+<div><dt>blk-crypto-fallback</dt><dd>blk-crypto's CPU stand-in for disks without an engine (path B).</dd></div>
+<div><dt>Bounce page</dt><dd>A spare page that holds the encrypted copy of a block while it's being written, so the page cache keeps the plain version. Paths A and B use them; path C doesn't need them.</dd></div>
+<div><dt>Data unit number (DUN)</dt><dd>The per-block number sent with each request and mixed into the encryption.</dd></div>
+<div><dt>dm-default-key</dt><dd>Android's device-mapper layer for metadata encryption.</dd></div>
+<div><dt>FBE, file-based encryption</dt><dd>Android's scheme in which files get their own keys, applied per file by fscrypt.</dd></div>
+<div><dt>fscrypt</dt><dd>The kernel's file-encryption layer, used by f2fs and ext4.</dd></div>
+<div><dt>fstab</dt><dd>The image's list of mount instructions, one line per partition.</dd></div>
+<div><dt>Inline encryption</dt><dd>Encryption done by hardware on the data path itself. Here, the AES engine in the UFS controller (path C).</dd></div>
+<div><dt>Key slot</dt><dd>A register in the engine that holds one key.</dd></div>
+<div><dt><code>ufs_fde</code>, <code>ck_aes_ufsfde_sel</code></dt><dd>The engine's clock selector: its device-tree name, and its name in the board's <code>clk_summary</code>.</dd></div>
+<div><dt><code>ufshci_aes</code></dt><dd>The engine's clock gate.</dd></div>
+<div><dt>UFSHCI</dt><dd>The UFS host controller standard. Its crypto section defines the key slots and the tagged requests.</dd></div>
+<div><dt>vold</dt><dd>Android's storage daemon. It creates and unlocks the encryption keys.</dd></div>
+</dl>
+
+<div class="end">Written with Claude Code on 1 November 2026, from the copies in <code>sources/</code>. Every command in this document only reads.</div>
+
+</body>
+</html>

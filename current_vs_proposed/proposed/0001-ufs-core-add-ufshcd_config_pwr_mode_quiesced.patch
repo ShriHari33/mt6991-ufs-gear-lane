@@ -1,0 +1,71 @@
+ufs: core: add ufshcd_config_pwr_mode_quiesced()
+
+One helper for "keep the clocks on, take clk_scaling_lock, stop new SCSI
+commands, wait for the ones in flight, then change the power mode", next to
+the static functions it needs. The debugfs power_mode code calls it instead
+of needing ufshcd_scsi_block_requests(), ufshcd_scsi_unblock_requests() and
+ufshcd_wait_for_doorbell_clr() exported.
+
+Against stock android15-6.6 (sources/android15-6.6). A tree that carries the
+ported power_mode code also exports those functions and ufshcd_scale_clks();
+with this helper they can go back to static (grep first).
+
+--- a/drivers/ufs/core/ufshcd.c	2026-11-01 17:05:25.602509873 +0530
++++ b/drivers/ufs/core/ufshcd.c	2026-11-01 17:05:25.605509900 +0530
+@@ -4672,6 +4672,45 @@
+ EXPORT_SYMBOL_GPL(ufshcd_config_pwr_mode);
+ 
+ /**
++ * ufshcd_config_pwr_mode_quiesced - change the power mode with I/O stopped
++ * @hba: per adapter instance
++ * @pwr: requested gear, lanes, mode and rate
++ *
++ * The same steps the core takes before its own gear changes: keep the
++ * clocks on, take clk_scaling_lock for writing, stop new SCSI commands and
++ * wait for the ones in flight. Then run the PMC through
++ * ufshcd_config_pwr_mode(), so the vendor's PRE_CHANGE and POST_CHANGE
++ * hooks run.
++ *
++ * The caller must hold hba->host_sem and a runtime PM reference on the
++ * UFS device W-LUN (ufshcd_rpm_get_sync()). Without that reference the link
++ * can be in software hibern8, and the PMC fails.
++ *
++ * Return: 0 on success, -EBUSY if the commands in flight didn't finish
++ * within a second or the host isn't operational, or the error from
++ * ufshcd_config_pwr_mode().
++ */
++int ufshcd_config_pwr_mode_quiesced(struct ufs_hba *hba,
++				    struct ufs_pa_layer_attr *pwr)
++{
++	int ret;
++
++	ufshcd_hold(hba);
++	down_write(&hba->clk_scaling_lock);
++	ufshcd_scsi_block_requests(hba);
++
++	ret = ufshcd_wait_for_doorbell_clr(hba, USEC_PER_SEC);
++	if (!ret)
++		ret = ufshcd_config_pwr_mode(hba, pwr);
++
++	ufshcd_scsi_unblock_requests(hba);
++	up_write(&hba->clk_scaling_lock);
++	ufshcd_release(hba);
++
++	return ret;
++}
++
++/**
+  * ufshcd_complete_dev_init() - checks device readiness
+  * @hba: per-adapter instance
+  *
+--- a/drivers/ufs/core/ufshcd-priv.h	2026-11-01 17:05:25.602509873 +0530
++++ b/drivers/ufs/core/ufshcd-priv.h	2026-11-01 17:05:25.605509900 +0530
+@@ -77,6 +77,8 @@
+ int ufshcd_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
+ 	enum flag_idn idn, u8 index, bool *flag_res);
+ void ufshcd_auto_hibern8_update(struct ufs_hba *hba, u32 ahit);
++int ufshcd_config_pwr_mode_quiesced(struct ufs_hba *hba,
++				    struct ufs_pa_layer_attr *pwr);
+ void ufshcd_compl_one_cqe(struct ufs_hba *hba, int task_tag,
+ 			  struct cq_entry *cqe);
+ int ufshcd_mcq_init(struct ufs_hba *hba);
