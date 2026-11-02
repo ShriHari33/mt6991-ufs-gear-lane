@@ -55,6 +55,7 @@ view the HTML.
 │   ├── proposed/ufs-debugfs_power_mode.c   proposed replacement
 │   ├── proposed/0001-ufs-core-add-ufshcd_config_pwr_mode_quiesced.patch
 │   ├── proposed/0002-ufs-debugfs-add-clk_rates.patch
+│   ├── proposed/0003-ufs-mediatek-raise-clocks-before-entering-HS-G5.patch   (vendor module)
 │   └── current_vs_proposed.diff
 │
 ├── patched_6.6/                       MediaTek driver with the 0001 patch applied

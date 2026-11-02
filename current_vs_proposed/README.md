@@ -11,6 +11,7 @@ Nothing here is compiled yet. Build it in a kernel tree before relying on it.
 | `current_vs_proposed.diff` | `diff -u` between the two files above. |
 | `proposed/0001-ufs-core-add-ufshcd_config_pwr_mode_quiesced.patch` | Adds the core helper the proposed code calls (`ufshcd.c` and `ufshcd-priv.h`). |
 | `proposed/0002-ufs-debugfs-add-clk_rates.patch` | Adds a read-only debugfs file, `clk_rates`, listing every UFS clock with its real rate. |
+| `proposed/0003-ufs-mediatek-raise-clocks-before-entering-HS-G5.patch` | MediaTek vendor module: before any power mode change into HS-G5, puts `ufs_sel` and the encryption clock `ufs_fde` on their fast sources (vcore first). See [Vendor patch 0003](#vendor-patch-0003). |
 
 Both patches are against stock `android15-6.6` (the copies in `../sources/android15-6.6/`), and both apply cleanly there (`patch -p1 --dry-run`). A vendor tree that already carries the ported code may need offsets or a little fuzz, so dry-run first.
 
@@ -66,6 +67,25 @@ dmesg | grep "err_handler started"   # should print nothing
 ```
 
 In `clk_rates`, look at two rows. `ufs_sel` should show 499200000 while the disk is busy at G5, with `dt_min`/`dt_max` 273000000/499200000. `ufs_fde` shows 416000000 or 546000000, with 0/0 in the device-tree columns because the core doesn't scale it.
+
+## Vendor patch 0003
+
+Without it, MediaTek raises `ufs_sel` and `ufs_fde` only from `clkscale_control` 2/4 (`ufs-mediatek.c:2332–2336`, clocks before the gear) and from its resume hook when the disk wakes at G5 (`:2697–2699`). A G5 request through `power_mode` goes through `ufs_mtk_pre_pwr_change()` (`:1908`), which negotiates the gear but never touches the clocks. So with the disk kept awake, G5 can run on 273 MHz and 416 MHz for as long as it stays awake.
+
+The patch adds the scale-up to `ufs_mtk_pre_pwr_change()`, after the gear is negotiated and before any PMC, whenever the result is HS-G5. The core calls that hook before every PMC (`ufshcd.c:4658`), even for a request the link already matches, so it covers `power_mode`, error recovery and the PMC after link startup. Nothing is lowered: the G5 suspend hook already drops the clocks while the disk sleeps.
+
+It applies to `../sources/mtk_vendor_6.6/ufs-mediatek.c` (paths are relative to the vendor tree, `drivers/ufs/`). It changes the MediaTek UFS vendor module, not the kernel image. Not compiled yet.
+
+Check after flashing, with no `clkscale_control` writes since boot:
+
+```
+grep -w -B8 ufs_fde /sys/kernel/debug/clk/clk_summary   # ck_aes_ufsfde_sel 546000000 under ck_mainpll_d4
+P=/sys/kernel/debug/ufshcd/16810000.ufshci/power_mode
+C=/sys/bus/platform/devices/16810000.ufshci/clkscale/clkscale_control
+echo 1 > $C                     # MediaTek scale-down: G4, ufs_sel 273 MHz, ufs_fde 416 MHz
+echo 552211 > $P                # G5 through power_mode
+grep -w -B8 ufs_fde /sys/kernel/debug/clk/clk_summary   # back on 546000000 at once, no sleep/wake needed
+```
 
 ## Sending it upstream
 

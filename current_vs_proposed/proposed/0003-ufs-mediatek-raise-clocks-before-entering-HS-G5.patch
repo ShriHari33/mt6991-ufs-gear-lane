@@ -1,0 +1,49 @@
+ufs: mediatek: raise ufs_sel and the crypto clock before entering HS-G5
+
+On boards where the core's clock scaling is off
+(mediatek,ufs-clkscale-only-by-user), MediaTek moves the two UFS clocks in
+only three places: its clkscale_control path, and its suspend and resume
+hooks when the link sleeps or wakes at HS-G5. A power mode change from
+anywhere else (the debugfs power_mode file, error recovery, the PMC after
+link startup) never raises them. G5 then runs, for as long as the disk
+stays awake, on whatever was left: possibly ufs_sel at 273 MHz and the
+inline encryption clock (ufs_fde) at 416 MHz instead of 499.2 and 546 MHz.
+
+Raise both, with vcore first, in ufs_mtk_pre_pwr_change() whenever the
+negotiated gear is HS-G5. That runs before every PMC that goes through
+ufshcd_config_pwr_mode(), including requests for the mode the link already
+has, so writing the current G5 mode again also restores the fast clocks.
+Nothing is lowered here: the G5 suspend hook already drops the clocks while
+the disk sleeps, and lower gears work on either setting.
+
+Against MediaTek's kernel_device_modules-6.6 (sources/mtk_vendor_6.6, the
+OnePlus public copy). It builds into the MediaTek UFS vendor module, not
+the kernel image.
+
+--- a/drivers/ufs/ufs-mediatek.c	2026-11-02 08:54:09.841208029 +0530
++++ b/drivers/ufs/ufs-mediatek.c	2026-11-02 08:54:09.859209561 +0530
+@@ -1939,6 +1939,24 @@
+ 	if (host->max_gear == 0)
+ 		host->max_gear = dev_req_params->gear_rx;
+ 
++	/*
++	 * HS-G5 needs ufs_sel and the inline encryption clock (ufs_fde) on
++	 * their fast sources, with vcore raised first. MediaTek's own scale-up
++	 * path (ufs_mtk_config_pwr_mode()) and the G5 resume hook do this, but a
++	 * power mode change from anywhere else (debugfs, error recovery, link
++	 * startup) does not, and then G5 runs on whatever clocks were left.
++	 * Raise them here, before any PMC, so every way into G5 is covered.
++	 * Repeating it when the clocks are already fast changes nothing.
++	 * Only when the core's own clock scaling is off: otherwise devfreq
++	 * owns these clocks (same condition as the G5 suspend/resume hooks).
++	 */
++	if (!ret && !ufshcd_is_clkscaling_supported(hba) &&
++	    host->mclk.ufs_sel_clki && host->mclk.ufs_sel_max_clki &&
++	    (dev_req_params->pwr_rx == FAST_MODE ||
++	     dev_req_params->pwr_rx == FASTAUTO_MODE) &&
++	    dev_req_params->gear_rx >= UFS_HS_G5)
++		_ufs_mtk_clk_scale(hba, true);
++
+ 	if (ufs_mtk_pmc_via_fastauto(hba, dev_req_params)) {
+ 		ufs_mtk_adjust_sync_length(hba);
+ 
