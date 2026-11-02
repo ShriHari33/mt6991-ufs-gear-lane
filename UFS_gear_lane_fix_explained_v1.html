@@ -617,7 +617,7 @@ vops_suspend:
 
 
 <h2 id="p4"><span class="num">4</span>Why the original line was right once</h2>
-<p>Was this “decided in 6.6”? It wasn't. It changed in Linux 5.14, in 2021, and 6.6 inherited it. the ported code comes from Qualcomm's Linux 4.19, from before the change.</p>
+<p>Was this “decided in 6.6”? It wasn't. It changed in Linux 5.14, in 2021, and 6.6 inherited it. The ported code comes from Qualcomm's Linux 4.19, from before the change.</p>
 
 <h3>4.1 Up to Linux 5.13: one switch did everything</h3>
 <p>Before 5.14, waking <code>hba-&gt;dev</code> ran <code>ufshcd_runtime_resume()</code>, which called <code>ufshcd_resume(hba, UFS_RUNTIME_PM)</code>. In v5.13 that single function did all of it:</p>

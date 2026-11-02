@@ -1005,7 +1005,7 @@ A fifth action, holding the chip's reset line, runs only when the link is fully 
 </div>
 
 <h3>3.6 Why the original line was right in Linux 4.19</h3>
-<p>Was this "decided in 6.6"? It wasn't. It changed in Linux 5.14, in 2021, and 6.6 inherited it. the ported code comes from Qualcomm's Linux 4.19, from before the change.</p>
+<p>Was this "decided in 6.6"? It wasn't. It changed in Linux 5.14, in 2021, and 6.6 inherited it. The ported code comes from Qualcomm's Linux 4.19, from before the change.</p>
 
 <h4>Up to Linux 5.13: one switch did everything</h4>
 <p><span class="lbl code">From the code</span>Before 5.14, waking <code>hba-&gt;dev</code> ran <code>ufshcd_runtime_resume()</code>, which called <code>ufshcd_resume(hba, UFS_RUNTIME_PM)</code>. In v5.13 that single function did all of it:</p>
@@ -1283,7 +1283,7 @@ cat $U/attributes/wb_avail_buf $U/attributes/wb_cur_buf $U/attributes/wb_flush_s
 <p><code>wb_avail_buf</code> counts in tenths: 10 means 100% free, 4 means 40%. Read it before and after one 4&nbsp;GB write. If it never drops, WriteBooster may not be in use at all (<code>wb_on</code> or <code>wb_enable</code> at 0), and the writes are going straight to the slower flash. To let the chip flush between runs, keep <code>power/control = on</code> and wait: with the chip powered and the link only in auto-hibern8, it can flush if <code>wb_flush_during_h8</code> is 1, and <code>wb_avail_buf</code> should climb back.</p>
 </div>
 
-<h3>4.10 the ported clock-scaling block on the board</h3>
+<h3>4.10 The ported clock-scaling block on the board</h3>
 <p><span class="lbl code">From the code</span>The block decides "scale up" for any gear above G1 and calls <code>ufshcd_scale_clks()</code>, around the PMC. That function has two halves. MediaTek's half, which raises vcore first and then switches sources, returns at once because core scaling is off (<code>ufs_mtk_clk_scale_notify()</code>, <code>ufs-mediatek.c:3172</code>). The core's half, <code>ufshcd_set_clk_freq()</code> (<code>ufshcd.c:1066</code>), calls <code>clk_set_rate()</code> on every clock with a frequency entry, which on the board means <code>ufs_sel</code> only, and skips it when the core's record, <code>clki-&gt;curr_freq</code>, already matches.</p>
 <p><span class="lbl seen">Seen on the board</span>A G1 visit sets <code>ufs_sel</code> to 273&nbsp;MHz. The next gear-up sets it to 499.2&nbsp;MHz. At G4 it then stays at 499.2&nbsp;MHz, because MediaTek's sleep and wake hooks only touch the clocks at G5, and nothing else lowers it (rows 3 and 4 of 4.2).</p>
 <p><strong>Is 499.2&nbsp;MHz at G4 unsafe?</strong> It depends on history, because the block never touches vcore:</p>
