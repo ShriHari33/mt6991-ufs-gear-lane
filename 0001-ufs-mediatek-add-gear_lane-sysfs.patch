@@ -6,7 +6,7 @@ count at run time. ufs_mtk_config_gear_lane() follows the same sequence
 as ufs_mtk_config_pwr_mode() (W-LUN resume, block requests, hold clocks,
 drain doorbells, ufs_sel mux ordering around G5), plus host_sem.
 
-Against MTK kernel_device_modules-6.6 (OnePlus MT6991 copy); apply with
+Against MTK kernel_device_modules-6.6 (the public MT6991 copy); apply with
 -p1 from the kernel_device_modules-6.6 root. Not compiled.
 
 ---

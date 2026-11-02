@@ -20,7 +20,7 @@ clock.
 
 | PDF | What it is |
 |---|---|
-| `UFS_MT6991_bug_fix_and_G5.pdf` | The main document (49 pages): the bug, the fix, why it happened, and the G5 investigation. |
+| `UFS_MT6991_bug_fix_and_G5.pdf` | The main document (48 pages): the bug, the fix, why it happened, and the G5 investigation. |
 | `UFS_MT6991_encryption_check.pdf` | Companion (11 pages): four read-only checks for whether `/data` is encrypted, and whether the UFS AES engine or the CPU does the work. |
 | `UFS_gear_lane_fix_explained.pdf`, `UFS_gear_lane_fix_explained_v1.pdf` | Earlier versions of the first write-up, kept as history. |
 
@@ -79,8 +79,8 @@ view the HTML.
 ## Sources and licences
 
 The kernel files in `sources/` are unmodified GPL-2.0 copies from public trees:
-the Android common kernel `android15-6.6`, OnePlus's public MT6991 tree
-(`kernel_device_modules-6.6`), LineageOS sm8250 msm-4.19, and upstream Linux
+the Android common kernel `android15-6.6`, a public MT6991 vendor kernel
+release (`kernel_device_modules-6.6`), LineageOS sm8250 msm-4.19, and upstream Linux
 v5.13, v5.14 and 6.18. `sources/README.md` says which file came from where.
 The code written for this investigation carries `SPDX-License-Identifier:
 GPL-2.0` headers.

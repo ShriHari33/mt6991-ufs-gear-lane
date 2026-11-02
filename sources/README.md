@@ -14,7 +14,7 @@ changes there, so search by function name:
 | Folder | Where it came from | PDF citations that point here |
 |---|---|---|
 | `android15-6.6/` | Android common kernel, android15-6.6: `drivers/ufs/core/` (`ufshcd.c`, `ufs-debugfs.c`, `ufshcd-priv.h`) and `include/ufs/ufshcd.h` | `ufshcd.c:…` (except Part 4), `ufshcd-priv.h`, `ufshcd.h`, `ufs-debugfs.c:68` |
-| `mtk_vendor_6.6/` | OnePlus's public MT6991 tree, `kernel_device_modules-6.6` | `ufs-mediatek*.c/.h`, `mt6991.dts` |
+| `mtk_vendor_6.6/` | A public MT6991 vendor kernel release, `kernel_device_modules-6.6` | `ufs-mediatek*.c/.h`, `mt6991.dts` |
 | `upstream_v5.13_v5.14/` | Linux v5.13 and v5.14, `drivers/scsi/ufs/ufshcd.c` | Part 4: `ufshcd.c:8846` is in the v5.13 file |
 | `qcom_msm-4.19/` | LineageOS sm8250 msm-4.19, `drivers/scsi/ufs/ufs-debugfs.c` | `ufs-debugfs.c:1211` and `:1237` |
 | `upstream_v6.18/` | Upstream Linux 6.18 (shallow clone, 5 December 2025), eight files kept at their kernel paths: fscrypt, f2fs, blk-crypto sysfs, UFS crypto, arm64 AES | Everything prefixed `upstream_v6.18/` in `UFS_MT6991_encryption_check`. Used because the matching `android15-6.6` files aren't on this machine |

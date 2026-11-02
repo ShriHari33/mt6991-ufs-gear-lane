@@ -3,7 +3,7 @@
  * Qualcomm downstream "power_mode" debugfs: the code the MediaTek port started from.
  *
  * Verbatim from msm-4.19 drivers/scsi/ufs/ufs-debugfs.c lines 1092-1331,
- * public copy: LineageOS/android_kernel_xiaomi_sm8250, branch lineage-21.
+ * public copy: a LineageOS sm8250 kernel tree, branch lineage-21.
  *
  * Compare ufsdbg_config_pwr_mode() below with the ported debugfs code:
  *   pm_runtime_get_sync(hba->dev)   on 4.19 this resumed the HBA *and* took

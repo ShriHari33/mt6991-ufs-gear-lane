@@ -164,7 +164,7 @@ dl.gloss dd { margin: .1rem 0 0 0; }
 <span class="chip wrong">Correction</span><span>Something stated during the investigation and later corrected.</span>
 <span class="chip try">Try it</span><span>Commands to run on the board.</span>
 </div>
-<p class="small">Line numbers come from the copies read for this write-up: MediaTek's vendor code from OnePlus's public MT6991 tree (<code>kernel_device_modules-6.6</code>), the Android common kernel <code>android15-6.6</code>, Qualcomm's msm-4.19 <code>ufs-debugfs.c</code>, and upstream Linux v5.13. The board's vendor tree has the same code but may be a few lines off.</p>
+<p class="small">Line numbers come from the copies read for this write-up: MediaTek's vendor code from a public MT6991 kernel release (<code>kernel_device_modules-6.6</code>), the Android common kernel <code>android15-6.6</code>, Qualcomm's msm-4.19 <code>ufs-debugfs.c</code>, and upstream Linux v5.13. The board's vendor tree has the same code but may be a few lines off.</p>
 
 <h3>Contents</h3>
 <nav class="toc">
@@ -346,7 +346,7 @@ dl.gloss dd { margin: .1rem 0 0 0; }
 </div>
 
 <h3>2.2 Two ways in, and one way out of each</h3>
-<p><strong>Auto-hibern8 (AH8): the hardware does it.</strong> You put an idle time into the AHIT register (offset 0x18). If no command arrives for that long, the controller puts the link to sleep by itself, and when a new command arrives it wakes the link by itself. Software takes no part. MediaTek sets the idle time according to who made the chip: 3.5&nbsp;ms for Samsung, 2&nbsp;ms for Micron, 1&nbsp;ms for everyone else (<code>ufs_mtk_fix_ahit()</code>, <code>ufs-mediatek.c:1488</code>). Writing 0 to AHIT turns the timer off.</p>
+<p><strong>Auto-hibern8 (AH8): the hardware does it.</strong> You put an idle time into the AHIT register (offset 0x18). If no command arrives for that long, the controller puts the link to sleep by itself, and when a new command arrives it wakes the link by itself. Software takes no part. MediaTek sets the idle time according to who made the chip, between 1 and 3.5&nbsp;ms (<code>ufs_mtk_fix_ahit()</code>, <code>ufs-mediatek.c:1488</code>). Writing 0 to AHIT turns the timer off.</p>
 <p><strong>Software hibern8: the driver does it.</strong> The driver sends the UIC command <code>DME_HIBERNATE_ENTER</code>. The link then stays asleep until the driver sends <code>DME_HIBERNATE_EXIT</code>. The hardware will not wake it on its own, and changing AHIT doesn't touch it.</p>
 <div class="box plain">
 <span class="tag">Plain words</span>
@@ -397,7 +397,7 @@ dl.gloss dd { margin: .1rem 0 0 0; }
 <h2 id="p3"><span class="num">3</span>The software: who's who in Linux</h2>
 
 <h3>3.1 Core and vendor: where the ported code runs</h3>
-<p>On Android, Google builds one generic kernel image for every phone, the <strong>GKI</strong> (Generic Kernel Image). The UFS <strong>core</strong> is part of it: <code>drivers/ufs/core/ufshcd.c</code>, <code>ufs-debugfs.c</code> and their friends. MediaTek's UFS code (<code>ufs-mediatek.c</code>, <code>ufs-mediatek-sysfs.c</code>, …) is a <strong>vendor module</strong> loaded on top, from <code>kernel_device_modules</code>.</p>
+<p>On Android, one generic kernel image is built for every phone, the <strong>GKI</strong> (Generic Kernel Image). The UFS <strong>core</strong> is part of it: <code>drivers/ufs/core/ufshcd.c</code>, <code>ufs-debugfs.c</code> and their friends. MediaTek's UFS code (<code>ufs-mediatek.c</code>, <code>ufs-mediatek-sysfs.c</code>, …) is a <strong>vendor module</strong> loaded on top, from <code>kernel_device_modules</code>.</p>
 <p>The core calls into the vendor module through <strong>vops</strong> (“variant operations”): a table of function pointers that MediaTek fills in. The ones in this story are:</p>
 <ul>
 <li><code>pwr_change_notify</code>, called just before a PMC (<code>PRE_CHANGE</code>) and just after it (<code>POST_CHANGE</code>);</li>
@@ -950,7 +950,7 @@ __releases(&amp;hba-&gt;host_sem)
 <h3>7.1 The path, in order</h3>
 <ol>
 <li><strong>The question.</strong> The starting point: the board, <code>clkscale_control</code>, the ported debugfs code and the two errors, and a search for a ready-made fix.</li>
-<li><strong>The search.</strong> We went through upstream Linux, MediaTek's vendor trees and the patch archives. No patch fixes this exact failure. Two are related, and neither fixes it: <code>7dec5cedf7b2</code> (“scsi: ufs: core: Serialize AHIT register access between sysfs and host driver”) and <code>f29ec85ac4fd</code> (“scsi: ufs: host: mediatek: Return error directly on idle wait timeout”). We downloaded MediaTek's MT6991 vendor code (OnePlus's public copy), the android15-6.6 core files and Qualcomm's msm-4.19 <code>ufs-debugfs.c</code>, so the three could be read side by side.</li>
+<li><strong>The search.</strong> We went through upstream Linux, MediaTek's vendor trees and the patch archives. No patch fixes this exact failure. Two are related, and neither fixes it: <code>7dec5cedf7b2</code> (“scsi: ufs: core: Serialize AHIT register access between sysfs and host driver”) and <code>f29ec85ac4fd</code> (“scsi: ufs: host: mediatek: Return error directly on idle wait timeout”). We downloaded MediaTek's MT6991 vendor code (a public copy), the android15-6.6 core files and Qualcomm's msm-4.19 <code>ufs-debugfs.c</code>, so the three could be read side by side.</li>
 <li><strong>One step at a time.</strong> The first explanation was too compressed, so we slowed down and went through it a question at a time. What does disabling AH8 actually do? Must the link be up before a PMC? Why would the <span class="nw">W-LUN</span>'s suspend have sent <code>DME_HIBERNATE_ENTER</code>? Why is there a separate step that powers UniPro down?</li>
 <li><strong>Code to compare.</strong> Files 01 to 05 were written into this folder, to open side by side in an editor.</li>
 <li><strong>The flow.</strong> The ported code's sequence: <code>pm_runtime_get_sync()</code>, hold, lock, block, doorbell, PMC, plus the ported clock lines. Its first step was the root cause: it woke <code>hba-&gt;dev</code>, not the <span class="nw">W-LUN</span>.</li>
@@ -1038,7 +1038,7 @@ dd if=/dev/block/sda of=/dev/null bs=1M count=1024</code></pre>
 <li>Make <code>ufsdbg_power_mode_write()</code> return the real error instead of <code>cnt</code> after a failed PMC, so <code>echo</code> fails visibly.</li>
 <li>To go back to max gear, write it through <code>power_mode</code> or reboot; <code>echo 2</code> or <code>echo 4</code> won't do it (6.4).</li>
 <li>If the failure ever comes back, print register 0x14C inside <code>ufs_mtk_auto_hibern8_disable()</code> at the moment it fails (needs a vendor-module rebuild). Bits 31 to 24 reading 3 would confirm a link stuck in hibern8.</li>
-<li>The board's vendor tree and the OnePlus copy used here have the same vendor code, but check line numbers before relying on them.</li>
+<li>The board's vendor tree and the public copy used here have the same vendor code, but check line numbers before relying on them.</li>
 <li><code>ufsdbg_cfg_pwr_param()</code> writes <code>hba-&gt;max_pwr_info.info.pwr_rx = FAST_MODE</code>. That's core state the error handler uses to restore the link. It's harmless today, because the chip already reports FAST there; don't write anything else into it.</li>
 </ul>
 
@@ -1053,7 +1053,7 @@ dd if=/dev/block/sda of=/dev/null bs=1M count=1024</code></pre>
 <dt>Doorbell</dt><dd>Controller register (offset 0x58) with one bit per command slot. The driver sets a bit to start a command; the controller clears it when the command is done.</dd>
 <dt>EH (error handler)</dt><dd>The core's recovery work. It resets the controller and restarts the link.</dd>
 <dt>Gear</dt><dd>Bits per second per lane. <span class="nw">HS-G1</span> to G5 are the fast family; the PWM gears are the slow one.</dd>
-<dt>GKI</dt><dd>Google's Generic Kernel Image, the common kernel that holds the UFS core.</dd>
+<dt>GKI</dt><dd>Android's Generic Kernel Image, the common kernel that holds the UFS core.</dd>
 <dt><code>hba</code></dt><dd>“Host bus adapter”: the core's <code>struct ufs_hba</code>, describing one controller. <code>hba-&gt;dev</code> is the controller's <code>struct device</code>.</dd>
 <dt>Hibern8</dt><dd>The link's deepest sleep that keeps its settings.</dd>
 <dt><code>host_sem</code></dt><dd>The core's semaphore that keeps user requests, error handling, system suspend and shutdown from overlapping.</dd>
@@ -1081,7 +1081,7 @@ dd if=/dev/block/sda of=/dev/null bs=1M count=1024</code></pre>
 <tr><td><code>01_mtk_reference.c</code></td><td>MediaTek's own <code>ufs_mtk_config_pwr_mode()</code>, with its steps marked [1] to [8]. The correct recipe, for reference.</td></tr>
 <tr><td><code>02_ufs_mtk_config_gear_lane.c</code></td><td>A gear and lane function for the vendor module. Alternative path; not compiled.</td></tr>
 <tr><td><code>03_gear_lane_sysfs.c</code></td><td>A sysfs file that calls 02.</td></tr>
-<tr><td><code>0001-ufs-mediatek-add-gear_lane-sysfs.patch</code></td><td>02 and 03 as a patch for the vendor tree. Applies to the OnePlus copy; not compiled.</td></tr>
+<tr><td><code>0001-ufs-mediatek-add-gear_lane-sysfs.patch</code></td><td>02 and 03 as a patch for the vendor tree. Applies to the public copy; not compiled.</td></tr>
 <tr><td><code>vendor_6.6/</code>, <code>patched_6.6/</code></td><td>The three MediaTek files before and after that patch.</td></tr>
 <tr><td><code>04_qcom_msm-4.19_ufsdbg_config_pwr_mode.c</code></td><td>Qualcomm's original, which was ported to the MediaTek SoC.</td></tr>
 <tr><td><code>05_core_ufs-debugfs_config_pwr_mode.c</code></td><td>A core version built on <code>ufs_debugfs_get_user_access()</code>.</td></tr>
@@ -1101,7 +1101,7 @@ dd if=/dev/block/sda of=/dev/null bs=1M count=1024</code></pre>
 </ul>
 <h4>Source copies read</h4>
 <ul>
-<li>MediaTek vendor code: OnePlus's public MT6991 tree, <code>kernel/kernel_device_modules-6.6/drivers/ufs/</code> (<code>ufs-mediatek.c</code>, <code>ufs-mediatek.h</code>, <code>ufs-mediatek-sysfs.c</code>) and <code>mt6991.dts</code>.</li>
+<li>MediaTek vendor code: a public MT6991 kernel release, <code>kernel/kernel_device_modules-6.6/drivers/ufs/</code> (<code>ufs-mediatek.c</code>, <code>ufs-mediatek.h</code>, <code>ufs-mediatek-sysfs.c</code>) and <code>mt6991.dts</code>.</li>
 <li>Android common kernel <code>android15-6.6</code>: <code>drivers/ufs/core/ufshcd.c</code>, <code>ufs-debugfs.c</code>, <code>ufshcd-priv.h</code>, <code>include/ufs/ufshcd.h</code>.</li>
 <li>Upstream Linux v5.13 and v5.14: <code>drivers/scsi/ufs/ufshcd.c</code>.</li>
 <li>Qualcomm msm-4.19 (LineageOS sm8250 kernel): <code>drivers/scsi/ufs/ufs-debugfs.c</code>.</li>

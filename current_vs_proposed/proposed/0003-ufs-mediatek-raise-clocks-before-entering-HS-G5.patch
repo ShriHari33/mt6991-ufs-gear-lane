@@ -16,8 +16,8 @@ has, so writing the current G5 mode again also restores the fast clocks.
 Nothing is lowered here: the G5 suspend hook already drops the clocks while
 the disk sleeps, and lower gears work on either setting.
 
-Against MediaTek's kernel_device_modules-6.6 (sources/mtk_vendor_6.6, the
-OnePlus public copy). It builds into the MediaTek UFS vendor module, not
+Against MediaTek's kernel_device_modules-6.6 (sources/mtk_vendor_6.6, a
+public MT6991 copy). It builds into the MediaTek UFS vendor module, not
 the kernel image.
 
 --- a/drivers/ufs/ufs-mediatek.c	2026-11-02 08:54:09.841208029 +0530

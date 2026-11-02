@@ -4,9 +4,7 @@
  * debugfs code.
  *
  * Verbatim from MTK vendor kernel_device_modules-6.6/drivers/ufs/ufs-mediatek.c
- * lines 2188-2449, public copy:
- *   OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_mt6991
- *   branch oneplus/mt6991_v_15.0.2_ace5_ultra
+ * lines 2188-2449, from a public MT6991 vendor kernel release.
  * Only the "[n]" comments are added. Full file: vendor_6.6/ufs-mediatek.c
  *
  * clkscale_control_store() -> ufs_mtk_dynamic_clock_scaling()

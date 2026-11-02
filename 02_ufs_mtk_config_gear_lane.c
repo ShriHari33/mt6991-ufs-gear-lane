@@ -22,7 +22,7 @@
  *  - returns an error, and turns "PMC returned 0 but a host reset is
  *    queued" (AH8 disable failed in PRE_CHANGE) into -EIO
  *
- * Not compiled. Names checked against the OnePlus MT6991 vendor copy and
+ * Not compiled. Names checked against the public MT6991 vendor copy and
  * the android15-6.6 GKI headers.
  */
 
